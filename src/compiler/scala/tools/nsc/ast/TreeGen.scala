@@ -34,7 +34,7 @@ abstract class TreeGen extends reflect.internal.TreeGen with TreeDSL {
 
   /** Builds a fully attributed wildcard import node.
    */
-  def mkWildcardImport(pkg: Symbol): Import = {
+  def mkWildcardImport(pkg: Symbol, isImplicit: Boolean): Import = {
     assert(pkg ne null, this)
     val qual = gen.mkAttributedStableRef(pkg)
     val importSym = (
@@ -44,7 +44,7 @@ abstract class TreeGen extends reflect.internal.TreeGen with TreeDSL {
           setInfo analyzer.ImportType(qual)
     )
     val importTree = (
-      Import(qual, ImportSelector.wildList)
+      Import(qual, ImportSelector.wildList, isImplicit)
         setSymbol importSym
           setType NoType
     )

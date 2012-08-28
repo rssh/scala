@@ -9,6 +9,7 @@ trait Symbols extends base.Symbols { self: Universe =>
   override type MethodSymbol >: Null <: TermSymbol with MethodSymbolApi
   override type ModuleSymbol >: Null <: TermSymbol with ModuleSymbolApi
   override type ClassSymbol >: Null <: TypeSymbol with ClassSymbolApi
+  override type ImportSymbol >: Null <: TermSymbol with ImportSymbolApi
   override type FreeTermSymbol >: Null <: TermSymbol with FreeTermSymbolApi
   override type FreeTypeSymbol >: Null <: TypeSymbol with FreeTypeSymbolApi
 
@@ -204,7 +205,7 @@ trait Symbols extends base.Symbols { self: Universe =>
 
   /** The API of term symbols */
   trait TermSymbolApi extends SymbolApi with TermSymbolBase { this: TermSymbol =>
-    /** Does this symbol represent a value, i.e. not a module and not a method?
+    /** Does this symbol represent a value, i.e. not a module and not a method and not a import?
      */
     def isValue: Boolean
 
@@ -388,6 +389,13 @@ trait Symbols extends base.Symbols { self: Universe =>
 
     /** For a polymorphic class/trait, its type parameters, the empty list for all other classes/trait */
     def typeParams: List[Symbol]
+  }
+
+  trait ImportSymbolApi extends TermSymbolApi with ImportSymbolBase { this: ImportSymbol =>
+
+    def expr: Type
+    def selectors: List[Pair[Name,Name]]
+
   }
 
   /** The API of free term symbols */

@@ -576,6 +576,7 @@ abstract class UnPickler /*extends reflect.generic.UnPickler*/ {
 
         case IMPORTtree =>
           setSym()
+          mods = readModifiersRef()
           val expr = readTreeRef()
           val selectors = until(end, () => {
             val from = readNameRef()
@@ -583,7 +584,7 @@ abstract class UnPickler /*extends reflect.generic.UnPickler*/ {
             ImportSelector(from, -1, to, -1)
           })
 
-          Import(expr, selectors)
+          Import(expr, selectors, mods hasFlag IMPLICIT)
 
         case TEMPLATEtree =>
           setSym()

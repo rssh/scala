@@ -55,6 +55,13 @@ trait Symbols { self: Universe =>
    */
   implicit val ClassSymbolTag: ClassTag[ClassSymbol]
 
+  /** The abstract type of import definitions */
+  type ImportSymbol >: Null <: TermSymbol with ImportSymbolBase
+
+  /** A tag that preserves the identity of the `ImportSymbol` abstract type from erasure. */
+  implicit val ImportSymbolTag: ClassTag[ImportSymbol]
+  
+
   /** The abstract type of free terms introduced by reification */
   type FreeTermSymbol >: Null <: TermSymbol with FreeTermSymbolBase
 
@@ -176,6 +183,10 @@ trait Symbols { self: Universe =>
      */
     def asClass: ClassSymbol = throw new ScalaReflectionException(s"$this is not a class")
 
+    def isImport: Boolean = false
+
+    def asImport: ImportSymbol = throw new ScalaReflectionException(s"$this is not a import term")
+
     /** Does this symbol represent a free term captured by reification?
      *  If yes, `isTerm` is also guaranteed to be true.
      */
@@ -267,6 +278,12 @@ trait Symbols { self: Universe =>
 
     final override def isModule = true
     final override def asModule = this
+  }
+
+  /** The base API that all import symbols support */
+  trait ImportSymbolBase extends TermSymbolBase { this: ImportSymbol =>
+    final override def isImport: Boolean = true
+    final override def asImport = this
   }
 
   /** The base API that all class symbols support */

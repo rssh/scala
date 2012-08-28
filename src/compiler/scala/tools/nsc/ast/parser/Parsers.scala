@@ -351,7 +351,7 @@ self =>
         /** For now we require there only be one top level object. */
         var seenModule = false
         val newStmts = stmts collect {
-          case t @ Import(_, _) => t
+          case t @ Import(_, _, _) => t
           case md @ ModuleDef(mods, name, template) if !seenModule && (md exists isMainMethod) =>
             seenModule = true
             /** This slightly hacky situation arises because we have no way to communicate
@@ -2303,12 +2303,12 @@ self =>
 
 
     /** {{{
-     *  Import  ::= import ImportExpr {`,' ImportExpr}
+     *  Import  ::= [implicit] import ImportExpr {`,' ImportExpr}
      *  }}}
      */
-    def importClause(): List[Tree] = {
+    def importClause(isImplicit: Boolean): List[Tree] = {
       val offset = accept(IMPORT)
-      commaSeparated(importExpr()) match {
+      commaSeparated(importExpr(isImplicit)) match {
         case Nil => Nil
         case t :: rest =>
           // The first import should start at the position of the keyword.
@@ -2321,7 +2321,7 @@ self =>
      *  ImportExpr ::= StableId `.' (Id | `_' | ImportSelectors)
      *  }}}
      */
-    def importExpr(): Tree = {
+    def importExpr(isImplicit:Boolean): Tree = {
       val start = in.offset
       def thisDotted(name: TypeName) = {
         in.nextToken()
@@ -2352,7 +2352,7 @@ self =>
             else List(makeImportSelector(name, nameOffset))
         }
         // reaching here means we're done walking.
-        atPos(start)(Import(expr, selectors))
+        atPos(start)(Import(expr, selectors, isImplicit))
       }
 
       loop(in.token match {
@@ -2416,7 +2416,7 @@ self =>
      *           | type [nl] TypeDcl
      *  }}}
      */
-    def defOrDcl(pos: Int, mods: Modifiers): List[Tree] = {
+    def defOrDclOrImplicitImport(pos: Int, mods: Modifiers): List[Tree] = {
       if (mods.isLazy && in.token != VAL)
         syntaxError("lazy not allowed here. Only vals can be lazy", false)
       in.token match {
@@ -2428,6 +2428,11 @@ self =>
           List(funDefOrDcl(pos, mods withPosition(DEF, tokenRange(in))))
         case TYPE =>
           List(typeDefOrDcl(pos, mods withPosition(TYPE, tokenRange(in))))
+        case IMPORT =>
+          if (!mods.isImplicit) {
+            syntaxError("only implicit modifier is allowed for import", false)
+          }
+          importClause(mods.isImplicit)
         case _ =>
           List(tmplDef(pos, mods))
       }
@@ -2435,9 +2440,9 @@ self =>
 
     private def caseAwareTokenOffset = if (in.token == CASECLASS || in.token == CASEOBJECT) in.prev.offset else in.offset
 
-    def nonLocalDefOrDcl : List[Tree] = {
+    def nonLocalDefOrDclOrImplicitImport : List[Tree] = {
       val annots = annotations(skipNewLines = true)
-      defOrDcl(caseAwareTokenOffset, modifiers() withAnnotations annots)
+      defOrDclOrImplicitImport(caseAwareTokenOffset, modifiers() withAnnotations annots)
     }
 
     /** {{{
@@ -2939,7 +2944,7 @@ self =>
             }
           case IMPORT =>
             in.flushDoc
-            importClause()
+            importClause(false)
           case x if x == AT || isTemplateIntro || isModifier =>
             joinComment(List(topLevelTmplDef))
           case _ =>
@@ -2996,12 +3001,12 @@ self =>
       while (!isStatSeqEnd) {
         if (in.token == IMPORT) {
           in.flushDoc
-          stats ++= importClause()
+          stats ++= importClause(false)
         } else if (isExprIntro) {
           in.flushDoc
           stats += statement(InTemplate)
         } else if (isDefIntro || isModifier || in.token == AT) {
-          stats ++= joinComment(nonLocalDefOrDcl)
+          stats ++= joinComment(nonLocalDefOrDclOrImplicitImport)
         } else if (!isStatSep) {
           syntaxErrorOrIncomplete("illegal start of definition", true)
         }
@@ -3021,7 +3026,7 @@ self =>
       val stats = new ListBuffer[Tree]
       while (!isStatSeqEnd) {
         if (isDclIntro) { // don't IDE hook
-          stats ++= joinComment(defOrDcl(in.offset, NoMods))
+          stats ++= joinComment(defOrDclOrImplicitImport(in.offset, NoMods))
         } else if (!isStatSep) {
           syntaxErrorOrIncomplete(
             "illegal start of declaration"+
@@ -3052,7 +3057,7 @@ self =>
       val pos = in.offset
       val mods = (localModifiers() | implicitMod) withAnnotations annots
       val defs =
-        if (!(mods hasFlag ~(Flags.IMPLICIT | Flags.LAZY))) defOrDcl(pos, mods)
+        if (!(mods hasFlag ~(Flags.IMPLICIT | Flags.LAZY))) defOrDclOrImplicitImport(pos, mods)
         else List(tmplDef(pos, mods))
 
       in.token match {
@@ -3074,7 +3079,7 @@ self =>
       val stats = new ListBuffer[Tree]
       while (!isStatSeqEnd && in.token != CASE) {
         if (in.token == IMPORT) {
-          stats ++= importClause()
+          stats ++= importClause(false)
           acceptStatSep()
         }
         else if (isExprIntro) {

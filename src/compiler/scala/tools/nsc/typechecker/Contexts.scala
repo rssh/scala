@@ -67,7 +67,7 @@ trait Contexts { self: Analyzer =>
     import definitions._
     var sc = startContext
     for (sym <- rootImports(unit)) {
-      sc = sc.makeNewImport(sym)
+      sc = sc.makeNewImport(sym, false)
       sc.depth += 1
     }
     val c = sc.make(unit, tree, sc.owner, sc.scope, sc.imports)
@@ -81,7 +81,7 @@ trait Contexts { self: Analyzer =>
     var sc = startContext
     while (sc != NoContext) {
       sc.tree match {
-        case Import(qual, _) => qual.tpe = singleType(qual.symbol.owner.thisType, qual.symbol)
+        case Import(qual, _, _ ) => qual.tpe = singleType(qual.symbol.owner.thisType, qual.symbol)
         case _ =>
       }
       sc = sc.outer
@@ -296,8 +296,8 @@ trait Contexts { self: Analyzer =>
       c
     }
 
-    def makeNewImport(sym: Symbol): Context =
-      makeNewImport(gen.mkWildcardImport(sym))
+    def makeNewImport(sym: Symbol, isImplicit: Boolean): Context =
+      makeNewImport(gen.mkWildcardImport(sym,isImplicit))
 
     def makeNewImport(imp: Import): Context =
       make(unit, imp, owner, scope, new ImportInfo(imp, depth) :: imports)
@@ -621,7 +621,7 @@ trait Contexts { self: Analyzer =>
       for (sym <- syms.toList if isQualifyingImplicit(sym.name, sym, pre, imported)) yield
         new ImplicitInfo(sym.name, pre, sym)
 
-    private def collectImplicitImports(imp: ImportInfo): List[ImplicitInfo] = {
+    private def collectImplicitInImports(imp: ImportInfo): List[ImplicitInfo] = {
       val pre = imp.qual.tpe
       def collect(sels: List[ImportSelector]): List[ImplicitInfo] = sels match {
         case List() =>
@@ -666,7 +666,7 @@ trait Contexts { self: Analyzer =>
             collectImplicits(scope, NoPrefix)
           } else if (imports != nextOuter.imports) {
             assert(imports.tail == nextOuter.imports, (imports, nextOuter.imports))
-            collectImplicitImports(imports.head)
+            collectImplicitInImports(imports.head)
           } else if (owner.isPackageClass) {
             // the corresponding package object may contain implicit members.
             collectImplicits(owner.tpe.implicitMembers, owner.tpe)

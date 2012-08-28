@@ -598,7 +598,6 @@ trait Types extends api.Types { self: SymbolTable =>
 
     /** Expands type aliases. */
     def dealias = this
-
     def etaExpand: Type = this
 
     /** Performs a single step of beta-reduction on types.
@@ -625,10 +624,15 @@ trait Types extends api.Types { self: SymbolTable =>
 
     /** The defined or declared members with name `name` in this type;
      *  an OverloadedSymbol if several exist, NoSymbol if none exist.
-     *  Alternatives of overloaded symbol appear in the order they are declared.
+     *  Alternatives of overloyaded symbol appear in the order they are declared.
      */
     def decl(name: Name): Symbol = findDecl(name, 0)
 
+    /** For a classtype or refined type - implicit imports, the empty scope
+     * for all other types.
+     */
+    def implicitImports: List[ImportSymbol] = Nil
+    
     /** A list of all non-private members defined or declared in this type. */
     def nonPrivateDecls: List[Symbol] = decls.filterNot(_.isPrivate).toList
 

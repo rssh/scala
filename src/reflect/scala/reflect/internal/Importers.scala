@@ -332,8 +332,8 @@ trait Importers { self: SymbolTable =>
           new TypeDef(importModifiers(mods), importName(name).toTypeName, tparams map importTypeDef, importTree(rhs))
         case from.LabelDef(name, params, rhs) =>
           new LabelDef(importName(name).toTermName, params map importIdent, importTree(rhs))
-        case from.Import(expr, selectors) =>
-          new Import(importTree(expr), selectors map importImportSelector)
+        case from.Import(expr, selectors, isImplicit) =>
+          new Import(importTree(expr), selectors map importImportSelector, isImplicit)
         case from.Template(parents, self, body) =>
           new Template(parents map importTree, importValDef(self), body map importTree)
         case from.Block(stats, expr) =>

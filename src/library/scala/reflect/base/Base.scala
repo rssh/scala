@@ -81,6 +81,11 @@ class Base extends Universe { self =>
       extends ClassSymbol(owner, name, flags) { override def isModuleClass = true }
   implicit val ClassSymbolTag = ClassTag[ClassSymbol](classOf[ClassSymbol])
 
+  class ImportSymbol(owner: Symbol, name: TermName, flags: FlagSet)
+       extends TermSymbol(owner, name, flags) with ImportSymbolBase
+
+  implicit val ImportSymbolTag = ClassTag[ImportSymbol](classOf[ImportSymbol])
+
   class FreeTermSymbol(owner: Symbol, name: TermName, flags: FlagSet)
       extends TermSymbol(owner, name, flags) with FreeTermSymbolBase
   implicit val FreeTermSymbolTag = ClassTag[FreeTermSymbol](classOf[FreeTermSymbol])
@@ -538,7 +543,7 @@ class Base extends Universe { self =>
   case class ImportSelector(name: Name, namePos: Int, rename: Name, renamePos: Int)
   object ImportSelector extends ImportSelectorExtractor
 
-  case class Import(expr: Tree, selectors: List[ImportSelector])
+  case class Import(expr: Tree, selectors: List[ImportSelector], isImplicit: Boolean)
        extends SymTree
   object Import extends ImportExtractor
 

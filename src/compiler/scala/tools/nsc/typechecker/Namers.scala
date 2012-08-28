@@ -43,7 +43,7 @@ trait Namers extends MethodSynthesis {
 
   private def isTemplateContext(ctx: Context): Boolean = ctx.tree match {
     case Template(_, _, _) => true
-    case Import(_, _)      => isTemplateContext(ctx.outer)
+    case Import(_, _, _)   => isTemplateContext(ctx.outer)
     case _                 => false
   }
 
@@ -213,7 +213,7 @@ trait Namers extends MethodSynthesis {
           case tree @ DefDef(_, _, _, _, _, _)               => enterDefDef(tree)
           case tree @ TypeDef(_, _, _, _)                    => enterTypeDef(tree)
           case DocDef(_, defn)                               => enterSym(defn)
-          case tree @ Import(_, _)                           =>
+          case tree @ Import(_, _, _)                        =>
             assignSymbol(tree)
             returnContext = context.makeNewImport(tree)
           case _ =>
@@ -231,7 +231,7 @@ trait Namers extends MethodSynthesis {
     def assignSymbol(tree: Tree): Symbol =
       logAssignSymbol(tree, tree match {
         case PackageDef(pid, _) => createPackageSymbol(tree.pos, pid)
-        case Import(_, _)       => createImportSymbol(tree)
+        case Import(_, _, _)    => createImportSymbol(tree)
         case mdef: MemberDef    => createMemberSymbol(mdef, mdef.name, -1L)
         case _                  => abort("Unexpected tree: " + tree)
       })
@@ -422,7 +422,7 @@ trait Namers extends MethodSynthesis {
 
     private def checkSelectors(tree: Import): Unit = {
       import DuplicatesErrorKinds._
-      val Import(expr, selectors) = tree
+      val Import(expr, selectors, isImplicit) = tree
       val base = expr.tpe
 
       def checkNotRedundant(pos: Position, from: Name, to0: Name) {
@@ -1280,7 +1280,7 @@ trait Namers extends MethodSynthesis {
         case TypeDef(_, _, tparams, rhs) =>
           createNamer(tree).typeDefSig(sym, tparams, rhs) //@M!
 
-        case Import(expr, selectors) =>
+        case Import(expr, selectors, isImplicit) =>
           val expr1 = typer.typedQualifier(expr)
           typer checkStable expr1
           if (expr1.symbol != null && expr1.symbol.isRootPackage)
@@ -1289,7 +1289,7 @@ trait Namers extends MethodSynthesis {
           if (expr1.isErrorTyped)
             ErrorType
           else {
-            val newImport = treeCopy.Import(tree, expr1, selectors).asInstanceOf[Import]
+            val newImport = treeCopy.Import(tree, expr1, selectors, isImplicit).asInstanceOf[Import]
             checkSelectors(newImport)
             transformed(tree) = newImport
             // copy symbol and type attributes back into old expression

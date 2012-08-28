@@ -277,7 +277,8 @@ abstract class Pickler extends SubComponent {
           putTree(rhs)
           putTrees(params)
 
-        case Import(expr, selectors) =>
+        case Import(expr, selectors, isImplicit) =>
+          putMods(if (isImplicit) Modifiers(IMPLICIT) else Modifiers())
           putTree(expr)
           for (ImportSelector(from, _, to, _) <- selectors) {
             putEntry(from)
@@ -715,10 +716,11 @@ abstract class Pickler extends SubComponent {
           writeRefs(params)
           TREE
 
-        case tree@Import(expr, selectors) =>
+        case tree@Import(expr, selectors , isImplicit) =>
           writeNat(IMPORTtree)
           writeRef(tree.tpe)
           writeRef(tree.symbol)
+          writeRef(if (isImplicit) Modifiers(IMPLICIT) else Modifiers())
           writeRef(expr)
           for (ImportSelector(from, _, to, _) <- selectors) {
             writeRef(from)

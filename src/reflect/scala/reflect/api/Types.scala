@@ -45,6 +45,11 @@ trait Types extends base.Types { self: Universe =>
      */
     def members: MemberScope
 
+    /**
+     * all implicit imports, declared in this scope.
+     */
+    def implicitImports: List[ImportSymbol]
+
     /** Is this type a type constructor that is missing its type arguments?
      */
     def takesTypeArgs: Boolean
