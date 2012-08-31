@@ -47,7 +47,9 @@ trait TypeDebugging {
       def brackets(xs: List[_]): String        = if (xs.isEmpty) "" else xs.mkString("[", ", ", "]")
       def tparams(tparams: List[Type]): String = brackets(tparams map debug)
       def parents(ps: List[Type]): String      = (ps map debug).mkString(" with ")
-      def refine(defs: Scope): String          = defs.toList.mkString("{", " ;\n ", "}")
+      def refine(exports: List[ImportSymbol], defs: Scope): String   = (exports++defs).toList.mkString("{", " ;\n ", "}")
+
+      def refine(defs: Scope): String   = defs.toList.mkString("{", " ;\n ", "}")
     }
 
     private def debug(tp: Type): String = tp match {
@@ -55,7 +57,7 @@ trait TypeDebugging {
       case ThisType(sym)                       => sym.nameString + ".this"
       case SingleType(pre, sym)                => debug(pre) +"."+ sym.nameString +".type"
       case RefinedType(parents, defs)          => str.parents(parents) + str.refine(defs)
-      case ClassInfoType(parents, defs, clazz) => "class "+ clazz.nameString + str.parents(parents) + str.refine(defs)
+      case ClassInfoType(parents, defs, exports, clazz) => "class "+ clazz.nameString + str.parents(parents) + str.refine(defs)
       case PolyType(tparams, result)           => str.brackets(tparams) + " " + debug(result)
       case TypeBounds(lo, hi)                  => ">: "+ debug(lo) +" <: "+ debug(hi)
       case tv @ TypeVar(_, _)                  => tv.toString

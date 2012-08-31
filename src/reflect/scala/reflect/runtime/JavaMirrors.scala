@@ -610,9 +610,9 @@ trait JavaMirrors extends internal.SymbolTable with api.JavaUniverse { self: Sym
         } finally {
           parentsLevel -= 1
         }
-        clazz setInfo GenPolyType(tparams, new ClassInfoType(parents, newScope, clazz))
+        clazz setInfo GenPolyType(tparams, new ClassInfoType(parents, newScope, Nil, clazz))
         if (module != NoSymbol) {
-          module.moduleClass setInfo new ClassInfoType(List(), newScope, module.moduleClass)
+          module.moduleClass setInfo new ClassInfoType(List(), newScope, List(), module.moduleClass)
         }
 
         def enter(sym: Symbol, mods: Int) =

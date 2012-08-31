@@ -54,7 +54,7 @@ abstract class Erasure extends AddInterfaces
             result = true
           case RefinedType(parents, _) =>
             parents foreach traverse
-          case ClassInfoType(parents, _, _) =>
+          case ClassInfoType(parents, _, _, _ ) =>
             parents foreach traverse
           case AnnotatedType(_, atp, _) =>
             traverse(atp)
@@ -279,7 +279,7 @@ abstract class Erasure extends AddInterfaces
 
         case RefinedType(parent :: _, decls) =>
           boxedSig(parent)
-        case ClassInfoType(parents, _, _) =>
+        case ClassInfoType(parents, _, _, _ ) =>
           superSig(parents)
         case AnnotatedType(_, atp, _) =>
           jsig(atp, existentiallyBound, toplevel, primitiveOK)

@@ -188,11 +188,11 @@ abstract class AddInterfaces extends InfoTransform { self: Erasure =>
         }
       }
       def implType(tp: Type): Type = tp match {
-        case ClassInfoType(parents, decls, _) =>
+        case ClassInfoType(parents, decls, exports, _) =>
           assert(phase == implClassPhase, tp)
           // Impl class parents: Object first, matching interface last.
           val implParents = ObjectClass.tpe +: (parents.tail map mixinToImplClass filter (_.typeSymbol != ObjectClass)) :+ iface.tpe
-          ClassInfoType(implParents, implDecls(implSym, decls), implSym)
+          ClassInfoType(implParents, implDecls(implSym, decls), exports, implSym)
         case PolyType(_, restpe) =>
           implType(restpe)
       }
@@ -203,7 +203,7 @@ abstract class AddInterfaces extends InfoTransform { self: Erasure =>
   }
 
   def transformMixinInfo(tp: Type): Type = tp match {
-    case ClassInfoType(parents, decls, clazz) =>
+    case ClassInfoType(parents, decls, exports, clazz) =>
       if (clazz.needsImplClass)
         implClass(clazz setFlag lateINTERFACE) // generate an impl class
 
@@ -220,7 +220,7 @@ abstract class AddInterfaces extends InfoTransform { self: Erasure =>
           else sym.isClass || sym.isTerm
         )
       )
-      ClassInfoType(parents1, decls1, clazz)
+      ClassInfoType(parents1, decls1, exports, clazz)
     case _ =>
       tp
   }

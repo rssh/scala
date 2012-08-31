@@ -83,7 +83,7 @@ trait SymbolLoaders { self: SymbolTable =>
   class LazyPackageType extends LazyType {
     override def complete(sym: Symbol) {
       assert(sym.isPackageClass)
-      sym setInfo new ClassInfoType(List(), new PackageScope(sym), sym)
+      sym setInfo new ClassInfoType(List(), new PackageScope(sym), List(), sym)
         // override def safeToString = pkgClass.toString
       openPackageModule(sym)
     }

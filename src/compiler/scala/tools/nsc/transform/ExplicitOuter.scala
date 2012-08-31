@@ -160,7 +160,7 @@ abstract class ExplicitOuter extends InfoTransform
       } else if (restpe ne restpe1)
         MethodType(params, restpe)
       else tp
-    case ClassInfoType(parents, decls, clazz) =>
+    case ClassInfoType(parents, decls, exports, clazz) =>
       var decls1 = decls
       if (isInner(clazz) && !clazz.isInterface) {
         decls1 = decls.cloneScope
@@ -182,7 +182,7 @@ abstract class ExplicitOuter extends InfoTransform
           }
         }
       }
-      if (decls1 eq decls) tp else ClassInfoType(parents, decls1, clazz)
+      if (decls1 eq decls) tp else ClassInfoType(parents, decls1, exports, clazz)
     case PolyType(tparams, restp) =>
       val restp1 = transformInfo(sym, restp)
       if (restp eq restp1) tp else PolyType(tparams, restp1)

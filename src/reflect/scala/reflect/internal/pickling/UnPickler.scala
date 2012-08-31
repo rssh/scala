@@ -64,6 +64,8 @@ abstract class UnPickler /*extends reflect.generic.UnPickler*/ {
     /** A map from symbols to their associated `decls` scopes */
     private val symScopes = mutable.HashMap[Symbol, Scope]()
 
+    private val symImplicitImports = mutable.HashMap[Symbol, List[ImportSymbol]]()
+
     //println("unpickled " + classRoot + ":" + classRoot.rawInfo + ", " + moduleRoot + ":" + moduleRoot.rawInfo);//debug
 
     // Laboriously unrolled for performance.
@@ -113,17 +115,28 @@ abstract class UnPickler /*extends reflect.generic.UnPickler*/ {
     /** The `decls` scope associated with given symbol */
     protected def symScope(sym: Symbol) = symScopes.getOrElseUpdate(sym, newScope)
 
+    protected def rememberSymImplicitImport(sym: Symbol, ii: ImportSymbol):Unit =
+    {
+      symImplicitImports.update(sym,
+              symImplicitImports.getOrElse(sym,List()) :+ ii
+      )
+    }
+
+    /** The `implicitImpots` associated with given symbol */
+
     /** Does entry represent an (internal) symbol */
     protected def isSymbolEntry(i: Int): Boolean = {
       val tag = bytes(index(i)).toInt
-      (firstSymTag <= tag && tag <= lastSymTag &&
-       (tag != CLASSsym || !isRefinementSymbolEntry(i)))
+      (firstSymTag <= tag && tag <= lastFirstRangeSymTag &&
+       (tag != CLASSsym || !isRefinementSymbolEntry(i))) ||
+      (tag == IMPLICITIMPORTsym)
     }
 
     /** Does entry represent an (internal or external) symbol */
     protected def isSymbolRef(i: Int): Boolean = {
       val tag = bytes(index(i))
-      (firstSymTag <= tag && tag <= lastExtSymTag)
+      (firstSymTag <= tag && tag <= lastFirstRangeExtSymTag) ||
+              (tag == IMPLICITIMPORTsym)
     }
 
     /** Does entry represent a name? */
@@ -278,9 +291,14 @@ abstract class UnPickler /*extends reflect.generic.UnPickler*/ {
           }
         )
         if (sym.owner.isClass && sym != classRoot && sym != moduleRoot &&
-            !sym.isModuleClass && !sym.isRefinementClass && !sym.isTypeParameter && !sym.isExistentiallyBound)
-          symScope(sym.owner) enter sym
-
+            !sym.isModuleClass && !sym.isRefinementClass && !sym.isTypeParameter && 
+            !sym.isExistentiallyBound) {
+          if (sym.isImport) {
+            rememberSymImplicitImport(sym.owner,sym.asImport)
+          } else {
+            symScope(sym.owner) enter sym
+          }
+        }
         sym
       }
 
@@ -306,6 +324,19 @@ abstract class UnPickler /*extends reflect.generic.UnPickler*/ {
         case VALsym =>
           if (isModuleRoot) { assert(false); NoSymbol }
           else owner.newTermSymbol(name.toTermName, NoPosition, pflags)
+        case IMPLICITIMPORTsym =>
+          if (isModuleRoot) { assert(false); NoSymbol }
+          else {
+            val endSym = readNat();
+            val base = readTypeRef()
+            var selects: List[Pair[Name,Name]] = Nil
+            while(readIndex < endSym) {
+              val n1 = readName();
+              val n2 = readName();
+              selects = (n1,n2)::selects
+            }
+            owner.newImport(NoPosition, base, selects, true)
+          }
 
         case _ =>
           errorBadSignature("bad symbol tag: " + tag)
@@ -348,7 +379,10 @@ abstract class UnPickler /*extends reflect.generic.UnPickler*/ {
           RefinedType(until(end, readTypeRef), symScope(clazz), clazz)
         case CLASSINFOtpe =>
           val clazz = readSymbolRef()
-          ClassInfoType(until(end, readTypeRef), symScope(clazz), clazz)
+          ClassInfoType(until(end, readTypeRef), 
+                        symScope(clazz), 
+                        symImplicitImports.getOrElse(clazz,Nil),
+                        clazz)
         case METHODtpe | IMPLICITMETHODtpe =>
           val restpe = readTypeRef()
           val params = until(end, readSymbolRef)

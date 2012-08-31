@@ -225,6 +225,7 @@ trait Types extends base.Types { self: Universe =>
   trait ClassInfoTypeApi extends TypeApi { this: ClassInfoType =>
     val parents: List[Type]
     val decls: Scope
+    val implicitImports: List[ImportSymbol]
     val typeSymbol: Symbol
   }
 

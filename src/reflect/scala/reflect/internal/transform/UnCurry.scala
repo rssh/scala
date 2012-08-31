@@ -42,10 +42,10 @@ trait UnCurry {
     def apply(tp0: Type): Type = {
       val tp = expandAlias(tp0)
       tp match {
-        case ClassInfoType(parents, decls, clazz) =>
+        case ClassInfoType(parents, decls, exports, clazz) =>
           val parents1 = parents mapConserve uncurry
           if (parents1 eq parents) tp
-          else ClassInfoType(parents1, decls, clazz) // @MAT normalize in decls??
+          else ClassInfoType(parents1, decls, exports, clazz) // @MAT normalize in decls??
         case PolyType(_, _) =>
           mapOver(tp)
         case _ =>

@@ -71,6 +71,10 @@ trait Importers { self: SymbolTable =>
             linkReferenced(myowner.newMethod(myname, mypos, myflags), x, importSymbol)
           case x: from.ModuleSymbol =>
             linkReferenced(myowner.newModuleSymbol(myname, mypos, myflags), x, importSymbol)
+          case x: from.ImportSymbol =>
+            linkReferenced(myowner.newImport(x.pos, importType(x.expr), 
+                                            x.selectors map (x => (importName(x._1), importName(x._2) ) ), 
+                                            x.isImplicit),x,importSymbol)
           case x: from.FreeTermSymbol =>
             newFreeTermSymbol(importName(x.name).toTermName, importType(x.info), x.value, x.flags, x.origin)
           case x: from.FreeTypeSymbol =>
@@ -222,10 +226,10 @@ trait Importers { self: SymbolTable =>
           TypeBounds(importType(lo), importType(hi))
         case from.BoundedWildcardType(bounds) =>
           BoundedWildcardType(importTypeBounds(bounds))
-        case from.ClassInfoType(parents, decls, clazz) =>
+        case from.ClassInfoType(parents, decls, exports, clazz) =>
           val myclazz = importSymbol(clazz)
           val myscope = if (myclazz.isPackageClass) newPackageScope(myclazz) else newScope
-          val myclazzTpe = ClassInfoType(parents map importType, myscope, myclazz)
+          val myclazzTpe = ClassInfoType(parents map importType, myscope, exports map importImportSymbol, myclazz)
           myclazz setInfo GenPolyType(myclazz.typeParams, myclazzTpe) // needed so that newly created symbols find their scope
           decls foreach importSymbol // will enter itself into myclazz
           myclazzTpe
@@ -307,6 +311,11 @@ trait Importers { self: SymbolTable =>
       if (name.isTypeName) newTypeName(name.toString) else newTermName(name.toString)
     def importTypeName(name: from.TypeName): TypeName = importName(name).toTypeName
     def importTermName(name: from.TermName): TermName = importName(name).toTermName
+
+    def importImportSymbol(sym: from.ImportSymbol): ImportSymbol =
+      importSymbol(sym.owner).newImport(sym.pos, importType(sym.expr), 
+                  sym.selectors map (x => (importName(x._1),importName(x._2))),
+                  sym.isImplicit)
 
     def importModifiers(mods: from.Modifiers): Modifiers =
       new Modifiers(mods.flags, importName(mods.privateWithin), mods.annotations map importTree)

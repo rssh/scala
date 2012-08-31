@@ -242,6 +242,7 @@ trait Types extends api.Types { self: SymbolTable =>
     override def parents = underlying.parents
     override def prefix = underlying.prefix
     override def decls = underlying.decls
+    override def implicitImports = underlying.implicitImports
     override def baseType(clazz: Symbol) = underlying.baseType(clazz)
     override def baseTypeSeq = underlying.baseTypeSeq
     override def baseTypeSeqDepth = underlying.baseTypeSeqDepth
@@ -631,7 +632,7 @@ trait Types extends api.Types { self: SymbolTable =>
     /** For a classtype or refined type - implicit imports, the empty scope
      * for all other types.
      */
-    def implicitImports: List[ImportSymbol] = Nil
+    def implicitImports: List[ImportSymbol] = Nil 
     
     /** A list of all non-private members defined or declared in this type. */
     def nonPrivateDecls: List[Symbol] = decls.filterNot(_.isPrivate).toList
@@ -1288,6 +1289,7 @@ trait Types extends api.Types { self: SymbolTable =>
     def supertype: Type
     override def parents: List[Type] = supertype.parents
     override def decls: Scope = supertype.decls
+    override def implicitImports: List[ImportSymbol] = supertype.implicitImports
     override def baseType(clazz: Symbol): Type = supertype.baseType(clazz)
     override def baseTypeSeq: BaseTypeSeq = supertype.baseTypeSeq
     override def baseTypeSeqDepth: Int = supertype.baseTypeSeqDepth
@@ -1844,6 +1846,7 @@ trait Types extends api.Types { self: SymbolTable =>
   case class ClassInfoType(
     override val parents: List[Type],
     override val decls: Scope,
+    override val implicitImports: List[ImportSymbol],
     override val typeSymbol: Symbol) extends CompoundType with ClassInfoTypeApi
   {
     validateClassInfo(this)
@@ -2016,8 +2019,8 @@ trait Types extends api.Types { self: SymbolTable =>
 
   object ClassInfoType extends ClassInfoTypeExtractor
 
-  class PackageClassInfoType(decls: Scope, clazz: Symbol)
-  extends ClassInfoType(List(), decls, clazz)
+  class PackageClassInfoType(implicitImports: List[ImportSymbol], decls: Scope, clazz: Symbol)
+  extends ClassInfoType(List(), decls, implicitImports, clazz)
 
   /** A class representing a constant type.
    *
@@ -2444,6 +2447,10 @@ trait Types extends api.Types { self: SymbolTable =>
       thisInfo.decls
     }
 
+    override def implicitImports: List[ImportSymbol] = {
+      thisInfo.implicitImports
+    }
+
     protected[Types] def baseTypeSeqImpl: BaseTypeSeq = sym.info.baseTypeSeq map transform
 
     override def baseTypeSeq: BaseTypeSeq = {
@@ -2703,6 +2710,7 @@ trait Types extends api.Types { self: SymbolTable =>
     override def paramTypes: List[Type] = resultType.paramTypes
     override def parents: List[Type] = resultType.parents
     override def decls: Scope = resultType.decls
+    override def implicitImports: List[ImportSymbol] = resultType.implicitImports
     override def termSymbol: Symbol = resultType.termSymbol
     override def typeSymbol: Symbol = resultType.typeSymbol
     override def boundSyms = immutable.Set[Symbol](typeParams ++ resultType.boundSyms: _*)
@@ -3807,8 +3815,8 @@ trait Types extends api.Types { self: SymbolTable =>
     def apply(tp: Type): Type = tp match {
       case rt @ RefinedType(parents, decls) if !decls.isEmpty =>
         mapOver(copyRefinedType(rt, parents, EmptyScope))
-      case ClassInfoType(parents, decls, clazz) if !decls.isEmpty =>
-        mapOver(ClassInfoType(parents, EmptyScope, clazz))
+      case ClassInfoType(parents, decls, implicitImports, clazz) if !decls.isEmpty =>
+        mapOver(ClassInfoType(parents, EmptyScope, implicitImports, clazz))
       case _ =>
         mapOver(tp)
     }
@@ -5110,12 +5118,12 @@ trait Types extends api.Types { self: SymbolTable =>
       // Lukas: we need to check (together) whether we should also include parameter types
       // of PolyType and MethodType in adaptToNewRun
 
-      case ClassInfoType(parents, decls, clazz) =>
+      case ClassInfoType(parents, decls, implicitImports, clazz) =>
         if (clazz.isPackageClass) tp
         else {
           val parents1 = parents mapConserve (this)
           if (parents1 eq parents) tp
-          else ClassInfoType(parents1, decls, clazz)
+          else ClassInfoType(parents1, decls, implicitImports, clazz)
         }
       case RefinedType(parents, decls) =>
         val parents1 = parents mapConserve (this)

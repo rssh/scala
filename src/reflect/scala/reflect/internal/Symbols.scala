@@ -222,8 +222,11 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
     final def newThisSym(name: TermName = nme.this_, pos: Position = NoPosition): TermSymbol =
       newTermSymbol(name, pos, SYNTHETIC)
 
-    final def newImport(pos: Position): TermSymbol =
-      newTermSymbol(nme.IMPORT, pos)
+    //final def newImport(pos: Position): TermSymbol =
+    //  newTermSymbol(nme.IMPORT, pos)
+
+    final def newImport(pos: Position, base: Type, selectors:List[Pair[Name,Name]], isImplicit:Boolean): ImportSymbol =
+        new ImportSymbol(this, pos, base, selectors, isImplicit) 
 
     final def newModuleSymbol(name: TermName, pos: Position = NoPosition, newFlags: Long = 0L): ModuleSymbol =
       newTermSymbol(name, pos, newFlags).asInstanceOf[ModuleSymbol]
@@ -358,12 +361,12 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
       newClassSymbol(name, pos, newFlags)
 
     /** A new class with its info set to a ClassInfoType with given scope and parents. */
-    def newClassWithInfo(name: TypeName, parents: List[Type], scope: Scope, pos: Position = NoPosition, newFlags: Long = 0L): ClassSymbol = {
+    def newClassWithInfo(name: TypeName, parents: List[Type], scope: Scope, exports: List[ImportSymbol],  pos: Position = NoPosition, newFlags: Long = 0L): ClassSymbol = {
       val clazz = newClass(name, pos, newFlags)
-      clazz setInfo ClassInfoType(parents, scope, clazz)
+      clazz setInfo ClassInfoType(parents, scope, exports, clazz)
     }
     final def newErrorClass(name: TypeName): ClassSymbol =
-      newClassWithInfo(name, Nil, new ErrorScope(this), pos, SYNTHETIC | IS_ERROR)
+      newClassWithInfo(name, Nil, new ErrorScope(this), Nil, pos, SYNTHETIC | IS_ERROR)
 
     final def newModuleClass(name: TypeName, pos: Position = NoPosition, newFlags: Long = 0L): ModuleClassSymbol =
       newModuleClassSymbol(name, pos, newFlags | MODULE)
@@ -1450,7 +1453,7 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
      */
     def makeSerializable() {
       info match {
-        case ci @ ClassInfoType(_, _, _) =>
+        case ci @ ClassInfoType(_, _, _, _) =>
           updateInfo(ci.copy(parents = ci.parents :+ SerializableClass.tpe))
         case i =>
           abort("Only ClassInfoTypes can be made serializable: "+ i)
@@ -2515,11 +2518,11 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
   }
   implicit val MethodSymbolTag = ClassTag[MethodSymbol](classOf[MethodSymbol])
 
-  class ImportSymbol protected[Symbols] (initOwner: Symbol, initPos: Position, initName: TermName, 
+  class ImportSymbol protected[Symbols] (initOwner: Symbol, initPos: Position,  
                                          importBase: Type, 
                                          impSelectors: List[Pair[Name,Name]], 
                                          impIsImplicit: Boolean)
-     extends TermSymbol(initOwner, initPos, initName) with ImportSymbolApi {
+     extends TermSymbol(initOwner, initPos, nme.IMPORT) with ImportSymbolApi {
        def expr: Type = importBase
        def selectors: List[Pair[Name,Name]] = impSelectors
        override def isImplicit: Boolean = impIsImplicit

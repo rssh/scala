@@ -186,7 +186,7 @@ trait DestructureTypes {
 
     def apply(tp: Type): Node = tp match {
       case AntiPolyType(pre, targs)                  => product(tp, prefix(pre), typeArgs(targs))
-      case ClassInfoType(parents, decls, clazz)      => product(tp, parentList(parents), scope(decls), wrapAtom(clazz))
+      case ClassInfoType(parents, decls, exports, clazz)      => product(tp, parentList(parents), scope(decls), symbolList(exports), wrapAtom(clazz))
       case ConstantType(const)                       => product(tp, constant("value", const))
       case DeBruijnIndex(level, index, args)         => product(tp, const("level" -> level), const("index" -> index), typeArgs(args))
       case OverloadedType(pre, alts)                 => product(tp, prefix(pre), node("alts", typeList(alts map pre.memberType)))

@@ -286,8 +286,15 @@ trait Namers extends MethodSynthesis {
     private def createFieldSymbol(tree: ValDef): TermSymbol =
       owner.newValue(nme.getterToLocal(tree.name), tree.pos, tree.mods.flags & FieldFlags | PrivateLocal)
 
-    private def createImportSymbol(tree: Tree) =
-      NoSymbol.newImport(tree.pos) setInfo completerOf(tree)
+    private def createImportSymbol(tree: Tree) = {
+      tree match {
+        case Import(expr,selectors,isImplicit) =>
+           NoSymbol.newImport(tree.pos, completerOf(expr),
+                              selectors.map(x=>(x.name,x.rename)),
+                              isImplicit
+                             ) setInfo completerOf(tree)
+      }
+    }
 
     /** All PackageClassInfoTypes come from here. */
     private def createPackageSymbol(pos: Position, pid: RefTree): Symbol = {
@@ -302,7 +309,7 @@ trait Namers extends MethodSynthesis {
       else {
         val pkg          = pkgOwner.newPackage(pid.name.toTermName, pos)
         val pkgClass     = pkg.moduleClass
-        val pkgClassInfo = new PackageClassInfoType(newPackageScope(pkgClass), pkgClass)
+        val pkgClassInfo = new PackageClassInfoType(Nil,newPackageScope(pkgClass), pkgClass)
 
         pkgClass setInfo pkgClassInfo
         pkg setInfo pkgClass.tpe
@@ -856,7 +863,7 @@ trait Namers extends MethodSynthesis {
       for (cda <- module.attachments.get[ConstructorDefaultsAttachment]) {
         cda.companionModuleClassNamer = templateNamer
       }
-      ClassInfoType(parents, decls, clazz)
+      ClassInfoType(parents, decls, Nil, clazz)
     }
 
     private def classSig(tparams: List[TypeDef], impl: Template): Type = {
@@ -1313,9 +1320,9 @@ trait Namers extends MethodSynthesis {
     def includeParent(tpe: Type, parent: Symbol): Type = tpe match {
       case PolyType(tparams, restpe) =>
         PolyType(tparams, includeParent(restpe, parent))
-      case ClassInfoType(parents, decls, clazz) =>
+      case ClassInfoType(parents, decls, exports, clazz) =>
         if (parents exists (_.typeSymbol == parent)) tpe
-        else ClassInfoType(parents :+ parent.tpe, decls, clazz)
+        else ClassInfoType(parents :+ parent.tpe, decls, exports, clazz)
       case _ =>
         tpe
     }

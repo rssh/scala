@@ -39,7 +39,9 @@ abstract class TreeGen extends reflect.internal.TreeGen with TreeDSL {
     val qual = gen.mkAttributedStableRef(pkg)
     val importSym = (
       NoSymbol
-        newImport NoPosition
+        newImport(NoPosition,qual.tpe,
+                  List((nme.WILDCARD,null)),
+                  isImplicit)
           setFlag SYNTHETIC
           setInfo analyzer.ImportType(qual)
     )

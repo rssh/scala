@@ -376,7 +376,7 @@ abstract class Mixin extends InfoTransform with ast.TreeDSL {
    *     and that define all.
    */
   override def transformInfo(sym: Symbol, tp: Type): Type = tp match {
-    case ClassInfoType(parents, decls, clazz) =>
+    case ClassInfoType(parents, decls, exports, clazz) =>
       var parents1 = parents
       var decls1 = decls
       if (!clazz.isPackageClass) {
@@ -410,7 +410,7 @@ abstract class Mixin extends InfoTransform with ast.TreeDSL {
       }
       //decls1 = enteringPhase(phase.next)(newScopeWith(decls1.toList: _*))//debug
       if ((parents1 eq parents) && (decls1 eq decls)) tp
-      else ClassInfoType(parents1, decls1, clazz)
+      else ClassInfoType(parents1, decls1, exports, clazz)
 
     case MethodType(params, restp) =>
       toInterfaceMap(

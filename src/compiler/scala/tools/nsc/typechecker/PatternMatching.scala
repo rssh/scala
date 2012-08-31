@@ -203,7 +203,7 @@ trait PatternMatching extends Transform with TypingTransformers with ast.TreeDSL
       def declarationOfName(tpe: Type, name: Name): Symbol = tpe match {
         case PolyType(tparams, restpe)  => tparams find (_.name == name) getOrElse declarationOfName(restpe, name)
         case MethodType(params, restpe) => params find (_.name == name) getOrElse declarationOfName(restpe, name)
-        case ClassInfoType(_, _, clazz) => clazz.rawInfo member name
+        case ClassInfoType(_, _, _, clazz) => clazz.rawInfo member name
         case _                          => NoSymbol
       }
       pat match {

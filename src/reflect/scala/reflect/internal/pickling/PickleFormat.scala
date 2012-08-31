@@ -37,7 +37,7 @@ object PickleFormat {
  *                  | 20 METHODtpe len_Nat tpe_Ref {sym_Ref}
  *                  | 21 POLYTtpe len_Nat tpe_Ref {sym_Ref}
  *                  | 22 IMPLICITMETHODtpe len_Nat tpe_Ref {sym_Ref} /* no longer needed */
- *                  | 52 SUPERtpe len_Nat tpe_Ref tpe_Ref
+ *                  | 46 SUPERtpe len_Nat tpe_Ref tpe_Ref
  *                  | 24 LITERALunit len_Nat
  *                  | 25 LITERALboolean len_Nat value_Long
  *                  | 26 LITERALbyte len_Nat value_Long
@@ -103,6 +103,7 @@ object PickleFormat {
  *                  | 49 TREE len_Nat 44 TYPEBOUNDStree type_Ref tree_Ref tree_Ref
  *                  | 49 TREE len_Nat 45 EXISTENTIALTYPEtree type_Ref tree_Ref {tree_Ref}
  *                  | 50 MODIFIERS len_Nat flags_Long privateWithin_Ref
+ *                  | 51 IMPLICITIMPORTsym len_Nat typeRef { name_Ref name_Ref  }
  *   SymbolInfo     = name_Ref owner_Ref flags_LongNat [privateWithin_Ref] info_Ref
  *   NameInfo       = <character sequence of length len_Nat in Utf8 format>
  *   NumInfo        = <len_Nat-byte signed number in big endian format>
@@ -114,7 +115,7 @@ object PickleFormat {
  *   len is remaining length after `len`.
  */
   val MajorVersion = 5
-  val MinorVersion = 0
+  val MinorVersion = 1
   def VersionString = "V" + MajorVersion + "." + MinorVersion
 
   final val TERMname = 1
@@ -213,10 +214,11 @@ object PickleFormat {
 
   final val MODIFIERS = 50
 
-  final val firstSymTag = NONEsym
-  final val lastSymTag = VALsym
-  final val lastExtSymTag = EXTMODCLASSref
+  final val IMPLICITIMPORTsym = 51
 
+  final val firstSymTag = NONEsym
+  final val lastFirstRangeSymTag = VALsym
+  final val lastFirstRangeExtSymTag = EXTMODCLASSref
 
   //The following two are no longer accurate, because ANNOTATEDtpe,
   //SUPERtpe, ... are not in the same range as the other types
