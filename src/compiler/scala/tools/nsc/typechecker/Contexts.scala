@@ -300,7 +300,8 @@ trait Contexts { self: Analyzer =>
       makeNewImport(gen.mkWildcardImport(sym,isImplicit))
 
     def makeNewImport(imp: Import): Context =
-      make(unit, imp, owner, scope, new ImportInfo(imp, depth) :: imports)
+      make(unit, imp, owner, scope, collectImports(imp,depth) ::: imports)
+      //make(unit, imp, owner, scope, new ImportInfo(imp, depth) :: imports)
 
     def make(tree: Tree, owner: Symbol, scope: Scope): Context =
       if (tree == this.tree && owner == this.owner && scope == this.scope) this
@@ -622,13 +623,13 @@ trait Contexts { self: Analyzer =>
         new ImplicitInfo(sym.name, pre, sym)
 
     private def collectImplicitInImports(imp: ImportInfo): List[ImplicitInfo] = {
-      val pre = imp.qual.tpe
-      def collect(sels: List[ImportSelector]): List[ImplicitInfo] = sels match {
+      val pre = imp.base
+      def collect(sels: List[Pair[Name,Name]]): List[ImplicitInfo] = sels match {
         case List() =>
           List()
-        case List(ImportSelector(nme.WILDCARD, _, _, _)) =>
+        case List((nme.WILDCARD, _)) =>
           collectImplicits(pre.implicitMembers, pre, imported = true)
-        case ImportSelector(from, _, to, _) :: sels1 =>
+        case (from, to) :: sels1 =>
           var impls = collect(sels1) filter (info => info.name != from)
           if (to != nme.WILDCARD) {
             for (sym <- imp.importedSymbol(to).alternatives)
@@ -638,7 +639,7 @@ trait Contexts { self: Analyzer =>
           impls
       }
       //debuglog("collect implicit imports " + imp + "=" + collect(imp.tree.selectors))//DEBUG
-      collect(imp.tree.selectors)
+      collect(imp.pairs)
     }
 
     /* SI-5892 / SI-4270: `implicitss` can return results which are not accessible at the
@@ -677,6 +678,20 @@ trait Contexts { self: Analyzer =>
       implicitsCache
     }
 
+    def collectImports(imp: Import, depth: Int): List[ImportInfo] =
+    {
+       val l0 = makeTreeImportInfo(imp, depth);
+       val l1 = l0.base.implicitImports flatMap(collectImports(_,depth))
+       l0::l1
+    }
+
+    def collectImports(imp: ImportSymbol, depth: Int): List[ImportInfo] =
+    {
+       val l0 = new ImportInfo(imp.expr, imp.selectors, depth) 
+       val l1 = l0.base.implicitImports flatMap(collectImports(_,depth))
+       l0::l1
+    }
+
     /**
      * Find a symbol in this context or one of its outers.
      *
@@ -700,50 +715,60 @@ trait Contexts { self: Analyzer =>
     }
   } //class Context
 
-  class ImportInfo(val tree: Import, val depth: Int) {
-    /** The prefix expression */
-    def qual: Tree = tree.symbol.info match {
-      case ImportType(expr) => expr
-      case ErrorType => tree setType NoType // fix for #2870
-      case _ => throw new FatalError("symbol " + tree.symbol + " has bad type: " + tree.symbol.info) //debug
-    }
+  class ImportInfo(val base: Type, val pairs: List[Pair[Name,Name]], val depth:Int)
+  {
 
-    /** Is name imported explicitly, not via wildcard? */
     def isExplicitImport(name: Name): Boolean =
-      tree.selectors exists (_.rename == name.toTermName)
+      pairs exists (x => x._2 == name.toTermName)
 
-    /** The symbol with name `name` imported from import clause `tree`.
+    /** The symbol with name `name` imported from this import clause.
      */
     def importedSymbol(name: Name): Symbol = {
       var result: Symbol = NoSymbol
       var renamed = false
-      var selectors = tree.selectors
+      var selectors = pairs
       while (selectors != Nil && result == NoSymbol) {
-        if (selectors.head.rename == name.toTermName)
-          result = qual.tpe.nonLocalMember( // new to address #2733: consider only non-local members for imports
-            if (name.isTypeName) selectors.head.name.toTypeName else selectors.head.name)
-        else if (selectors.head.name == name.toTermName)
+        if (selectors.head._2 == name.toTermName)
+          result = base.nonLocalMember( // new to address #2733: consider only non-local members for imports
+            if (name.isTypeName) selectors.head._1.toTypeName else selectors.head._1)
+        else if (selectors.head._1 == name.toTermName)
           renamed = true
-        else if (selectors.head.name == nme.WILDCARD && !renamed)
-          result = qual.tpe.nonLocalMember(name)
+        else if (selectors.head._1 == nme.WILDCARD && !renamed)
+          result = base.nonLocalMember(name)
         selectors = selectors.tail
       }
       result
     }
 
     def allImportedSymbols: Iterable[Symbol] =
-      qual.tpe.members flatMap (transformImport(tree.selectors, _))
+      base.members flatMap (transformImport(pairs, _))
 
-    private def transformImport(selectors: List[ImportSelector], sym: Symbol): List[Symbol] = selectors match {
+
+    private def transformImport(selectors: List[Pair[Name,Name]], sym: Symbol): List[Symbol] = selectors match {
       case List() => List()
-      case List(ImportSelector(nme.WILDCARD, _, _, _)) => List(sym)
-      case ImportSelector(from, _, to, _) :: _ if from == sym.name =>
+      case List((nme.WILDCARD, _)) => List(sym)
+      case (from, to) :: _ if from == sym.name =>
         if (to == nme.WILDCARD) List()
         else List(sym.cloneSymbol(sym.owner, sym.rawflags, to))
       case _ :: rest => transformImport(rest, sym)
     }
 
-    override def toString() = tree.toString()
+  }
+
+  def importQual(tree:Import): Tree =
+    tree.symbol.info match {
+      case ImportType(expr) => expr
+      case ErrorType => tree setType NoType // fix for #2870
+      case _ => throw new FatalError("symbol " + tree.symbol + " has bad type: " + tree.symbol.info) //debug
+    }
+
+  def makeTreeImportInfo(tree:Import, depth: Int) =
+  {
+    val qual = importQual(tree)
+    val pairs = tree.selectors map {
+                   case ImportSelector(from,_,to,_) => (from,to)
+                }
+    new ImportInfo(qual.tpe,pairs,depth)
   }
 
   case class ImportType(expr: Tree) extends Type {

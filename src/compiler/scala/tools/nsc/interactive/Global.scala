@@ -878,9 +878,9 @@ class Global(settings: Settings, _reporter: Reporter, projectName: String = "")
     val context = doLocateContext(pos)
     val locals = new Members[ScopeMember]
     val enclosing = new Members[ScopeMember]
-    def addScopeMember(sym: Symbol, pre: Type, viaImport: Tree) =
+    def addScopeMember(sym: Symbol, pre: Type /*, viaImport: Tree */) =
       locals.add(sym, pre, false) { (s, st) =>
-        new ScopeMember(s, st, context.isAccessible(s, pre, false), viaImport)
+        new ScopeMember(s, st, context.isAccessible(s, pre, false) /*, viaImport */)
       }
     def localsToEnclosing() = {
       enclosing.addNonShadowed(locals)
@@ -890,21 +890,21 @@ class Global(settings: Settings, _reporter: Reporter, projectName: String = "")
     var cx = context
     while (cx != NoContext) {
       for (sym <- cx.scope)
-        addScopeMember(sym, NoPrefix, EmptyTree)
+        addScopeMember(sym, NoPrefix /*, EmptyTree */)
       localsToEnclosing()
       if (cx == cx.enclClass) {
         val pre = cx.prefix
         for (sym <- pre.members)
-          addScopeMember(sym, pre, EmptyTree)
+          addScopeMember(sym, pre /*, EmptyTree */)
         localsToEnclosing()
       }
       cx = cx.outer
     }
     //print("\nadd imported members")
     for (imp <- context.imports) {
-      val pre = imp.qual.tpe
+      val pre = imp.base
       for (sym <- imp.allImportedSymbols)
-        addScopeMember(sym, pre, imp.qual)
+        addScopeMember(sym, pre /*, imp.qual*/)
       localsToEnclosing()
     }
     // println()

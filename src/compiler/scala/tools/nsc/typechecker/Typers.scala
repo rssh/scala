@@ -4796,8 +4796,8 @@ trait Typers extends Modes with Adaptations with Tags {
               def ambiguousImport() = {
                 // The types of the qualifiers from which the ambiguous imports come.
                 // If the ambiguous name is a value, these must be the same.
-                def t1  = imports.head.qual.tpe
-                def t2  = imports1.head.qual.tpe
+                def t1  = imports.head.base
+                def t2  = imports1.head.base
                 // The types of the ambiguous symbols, seen as members of their qualifiers.
                 // If the ambiguous name is a monomorphic type, we can relax this far.
                 def mt1 = t1 memberType impSym
@@ -4843,10 +4843,12 @@ trait Typers extends Modes with Adaptations with Tags {
                 imports1 = imports1.tail
               }
               defSym = impSym
-              val qual0 = imports.head.qual
-              if (!(shortenImports && qual0.symbol.isPackage)) // optimization: don't write out package prefixes
-                qual = atPos(tree.pos.focusStart)(resetPos(qual0.duplicate))
-              pre = qual.tpe
+              pre = imports.head.base
+              // TODO: rethink.
+              //val qual0 = imports.head.qual
+              //if (!(shortenImports && qual0.symbol.isPackage)) // optimization: don't write out package prefixes
+              //  qual = atPos(tree.pos.focusStart)(resetPos(qual0.duplicate))
+              //pre = qual.tpe
             }
             else if (settings.exposeEmptyPackage.value && checkEmptyPackage())
               log("Allowing empty package member " + name + " due to settings.")

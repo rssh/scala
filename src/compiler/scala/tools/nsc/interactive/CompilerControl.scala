@@ -288,8 +288,8 @@ trait CompilerControl { self: Global =>
   case class ScopeMember(
     sym: Symbol,
     tpe: Type,
-    accessible: Boolean,
-    viaImport: Tree) extends Member
+    accessible: Boolean
+   /* viaImport: Tree */ ) extends Member
 
   // items that get sent to scheduler
 
