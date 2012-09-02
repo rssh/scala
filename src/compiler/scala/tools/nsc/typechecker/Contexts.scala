@@ -738,6 +738,9 @@ trait Contexts { self: Analyzer =>
           renamed = true
         else if (selectors.head.name == nme.WILDCARD && !renamed) {
           result = qual.tpe.nonLocalMember(name)
+          if (result == NoSymbol) {
+             result = qual.tpe.implicitImport(name)
+          }
         }
         selectors = selectors.tail
       }
@@ -745,7 +748,8 @@ trait Contexts { self: Analyzer =>
     }
 
     def allImportedSymbols: Iterable[Symbol] =
-      qual.tpe.members flatMap (transformImport(tree.selectors, _))
+      (qual.tpe.members flatMap (transformImport(tree.selectors, _)) ) ++ 
+           qual.tpe.allExports(scala.collection.immutable.Set())
 
     private def transformImport(selectors: List[ImportSelector], sym: Symbol): List[Symbol] = selectors match {
       case List() => List()

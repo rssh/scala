@@ -637,10 +637,15 @@ trait Types extends api.Types { self: SymbolTable =>
     /** Find name in implicit imports
      */
     def implicitImport(name: TermName): Symbol =
+           findImplicitImport(name,Set())._1
+
+    def findImplicitImport(name: TermName, rtrack:Set[Type]): (Symbol, Set[Type]) =
     {
       var result: Symbol = NoSymbol
-      var cii = implicitImports
-      while( cii!=Nil && result != NoSymbol) {
+      var nrtrack = (rtrack + this)
+      if (!rtrack.contains(this)) {
+        var cii = implicitImports
+        while( cii!=Nil && result != NoSymbol) {
          val c = cii.head
          cii = cii.tail
          var csel = c.selectors
@@ -657,10 +662,13 @@ trait Types extends api.Types { self: SymbolTable =>
             }
          }
          if (result == NoSymbol) {
-            result = c.base.implicitImport(name)
+            val (r,t) = c.base.findImplicitImport(name, nrtrack)
+            result = r
+            nrtrack = t
          }
+        }
       }
-      result
+      (result, nrtrack)
     }
     
     /** All symbols, avialable from implicit imports
