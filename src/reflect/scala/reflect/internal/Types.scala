@@ -633,6 +633,59 @@ trait Types extends api.Types { self: SymbolTable =>
      * for all other types.
      */
     def implicitImports: List[ImportSymbol] = Nil 
+
+    /** Find name in implicit imports
+     */
+    def implicitImport(name: TermName): Symbol =
+    {
+      var result: Symbol = NoSymbol
+      var cii = implicitImports
+      while( cii!=Nil && result != NoSymbol) {
+         val c = cii.head
+         cii = cii.tail
+         var csel = c.selectors
+         var renamed = false
+         while ( csel != Nil && result != NoSymbol ) {
+            val sel = csel.head
+            csel = csel.tail
+            if (sel._2 == name) {
+                result = c.base.nonLocalMember(sel._1)
+            } else if (sel._1 == name ) {
+                renamed = true 
+            } else if (sel._1 == nme.WILDCARD && !renamed) {
+                result = c.base.nonLocalMember(name)
+            }
+         }
+         if (result == NoSymbol) {
+            result = c.base.implicitImport(name)
+         }
+      }
+      result
+    }
+    
+    /** All symbols, avialable from implicit imports
+    */
+    def allExports:List[Symbol] =
+    {
+      implicitImports.flatMap(x =>
+         x.selectors.flatMap( sel =>
+           if (sel._1 == nme.WILDCARD) {
+              x.base.members ++ x.base.allExports
+           } else if (sel._2 != nme.WILDCARD) {
+              val sym = x.base.nonLocalMember(sel._1);
+              if (x!=NoSymbol) {   
+                 List(if (sel._1 != sel._2) {
+                        sym.cloneSymbol(sym.owner,sym.rawflags,sel._2)
+                      } else {
+                        sym
+                      }
+                 )
+              }else Nil
+           } else 
+              Nil
+         ) 
+       )
+    }
     
     /** A list of all non-private members defined or declared in this type. */
     def nonPrivateDecls: List[Symbol] = decls.filterNot(_.isPrivate).toList

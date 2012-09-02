@@ -2519,14 +2519,11 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
   implicit val MethodSymbolTag = ClassTag[MethodSymbol](classOf[MethodSymbol])
 
   class ImportSymbol protected[Symbols] (initOwner: Symbol, initPos: Position,  
-                                         importBase: Type, 
-                                         impSelectors: List[Pair[Name,Name]], 
-                                         impIsImplicit: Boolean)
-     extends TermSymbol(initOwner, initPos, nme.IMPORT) with ImportSymbolApi {
-       def expr: Type = importBase
-       def selectors: List[Pair[Name,Name]] = impSelectors
-       override def isImplicit: Boolean = impIsImplicit
-  }
+                                         val base: Type, 
+                                         val selectors: List[Pair[Name,Name]], 
+                                         val IsImplicit: Boolean)
+     extends TermSymbol(initOwner, initPos, nme.IMPORT) with ImportSymbolApi 
+
   implicit val ImportSymbolTag = ClassTag[ImportSymbol](classOf[ImportSymbol])
 
   class AliasTypeSymbol protected[Symbols] (initOwner: Symbol, initPos: Position, initName: TypeName)

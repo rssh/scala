@@ -300,7 +300,12 @@ trait Contexts { self: Analyzer =>
       makeNewImport(gen.mkWildcardImport(sym,isImplicit))
 
     def makeNewImport(imp: Import): Context =
-      make(unit, imp, owner, scope, new ImportInfo(imp, depth) :: imports)
+    {
+     // we can't add generation of implicit imports here, because call if
+     // importInfo.qual.tpe give us 'cyclic reference error' since we in
+     // scope of type yer.
+      make(unit, imp, owner, scope, new ImportInfo(imp,depth) :: imports)
+    }
 
     def make(tree: Tree, owner: Symbol, scope: Scope): Context =
       if (tree == this.tree && owner == this.owner && scope == this.scope) this
@@ -701,6 +706,7 @@ trait Contexts { self: Analyzer =>
   } //class Context
 
   class ImportInfo(val tree: Import, val depth: Int) {
+
     /** The prefix expression */
     def qual: Tree = tree.symbol.info match {
       case ImportType(expr) => expr
@@ -711,6 +717,12 @@ trait Contexts { self: Analyzer =>
     /** Is name imported explicitly, not via wildcard? */
     def isExplicitImport(name: Name): Boolean =
       tree.selectors exists (_.rename == name.toTermName)
+
+    def isWildcard: Boolean =
+      tree.selectors match {
+         case ImportSelector(nme.WILDCARD,_,_,_)::Nil => true
+         case _ => false
+      }
 
     /** The symbol with name `name` imported from import clause `tree`.
      */
@@ -724,8 +736,9 @@ trait Contexts { self: Analyzer =>
             if (name.isTypeName) selectors.head.name.toTypeName else selectors.head.name)
         else if (selectors.head.name == name.toTermName)
           renamed = true
-        else if (selectors.head.name == nme.WILDCARD && !renamed)
+        else if (selectors.head.name == nme.WILDCARD && !renamed) {
           result = qual.tpe.nonLocalMember(name)
+        }
         selectors = selectors.tail
       }
       result

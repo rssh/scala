@@ -8,7 +8,9 @@ package x {
 
 package object q {
   implicit import x._
-  //import x._
+  class Y {
+   print("y.Y")
+  }
 }
 
 object A

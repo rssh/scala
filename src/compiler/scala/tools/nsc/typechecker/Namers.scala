@@ -286,10 +286,11 @@ trait Namers extends MethodSynthesis {
     private def createFieldSymbol(tree: ValDef): TermSymbol =
       owner.newValue(nme.getterToLocal(tree.name), tree.pos, tree.mods.flags & FieldFlags | PrivateLocal)
 
+   
     private def createImportSymbol(tree: Tree) = {
       tree match {
         case Import(expr,selectors,isImplicit) =>
-           NoSymbol.newImport(tree.pos, completerOf(expr),
+           NoSymbol.newImport(tree.pos, expr.tpe,
                               selectors.map(x=>(x.name,x.rename)),
                               isImplicit
                              ) setInfo completerOf(tree)

@@ -393,7 +393,8 @@ trait Symbols extends base.Symbols { self: Universe =>
 
   trait ImportSymbolApi extends TermSymbolApi with ImportSymbolBase { this: ImportSymbol =>
 
-    def expr: Type
+    /* type */
+    def base: Type
     def selectors: List[Pair[Name,Name]]
 
   }
