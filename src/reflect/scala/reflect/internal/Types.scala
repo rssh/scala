@@ -665,12 +665,17 @@ trait Types extends api.Types { self: SymbolTable =>
     
     /** All symbols, avialable from implicit imports
     */
-    def allExports:List[Symbol] =
+    def allExports(alreadyExported: Set[Type]):List[Symbol] =
     {
-      implicitImports.flatMap(x =>
-         x.selectors.flatMap( sel =>
+      if (alreadyExported.contains(this)) {
+        Nil
+      } else {
+       var newAlready = alreadyExported + this
+       implicitImports.flatMap(x =>
+         if (newAlready.contains(x.base)) Nil
+         else x.selectors.flatMap( sel =>
            if (sel._1 == nme.WILDCARD) {
-              x.base.members ++ x.base.allExports
+              x.base.members ++ x.base.allExports(newAlready)
            } else if (sel._2 != nme.WILDCARD) {
               val sym = x.base.nonLocalMember(sel._1);
               if (x!=NoSymbol) {   
@@ -685,6 +690,7 @@ trait Types extends api.Types { self: SymbolTable =>
               Nil
          ) 
        )
+      }
     }
     
     /** A list of all non-private members defined or declared in this type. */
