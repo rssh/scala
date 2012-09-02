@@ -57,7 +57,7 @@ trait TypeDebugging {
       case ThisType(sym)                       => sym.nameString + ".this"
       case SingleType(pre, sym)                => debug(pre) +"."+ sym.nameString +".type"
       case RefinedType(parents, defs)          => str.parents(parents) + str.refine(defs)
-      case ClassInfoType(parents, defs, exports, clazz) => "class "+ clazz.nameString + str.parents(parents) + str.refine(defs)
+      case ClassInfoType(parents, defs, clazz) => "class "+ clazz.nameString + str.parents(parents) + str.refine(defs)
       case PolyType(tparams, result)           => str.brackets(tparams) + " " + debug(result)
       case TypeBounds(lo, hi)                  => ">: "+ debug(lo) +" <: "+ debug(hi)
       case tv @ TypeVar(_, _)                  => tv.toString

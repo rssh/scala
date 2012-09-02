@@ -1625,7 +1625,6 @@ trait Typers extends Modes with Adaptations with Tags {
           val newinfo = ClassInfoType(
             classinfo.parents map (_.instantiateTypeParams(List(tparam), List(AnyRefClass.tpe))),
             classinfo.decls,
-            classinfo.implicitImports,
             clazz)
           clazz.setInfo {
             clazz.info match {
@@ -2412,7 +2411,7 @@ trait Typers extends Modes with Adaptations with Tags {
 
       def applyMethod = {
         // rig the show so we can get started typing the method body -- later we'll correct the infos...
-        anonClass setInfo ClassInfoType(addSerializable(ObjectClass.tpe, pt), newScope, Nil, anonClass)
+        anonClass setInfo ClassInfoType(addSerializable(ObjectClass.tpe, pt), newScope, anonClass)
         val methodSym = anonClass.newMethod(nme.apply, tree.pos, if(isPartial) (FINAL | OVERRIDE) else FINAL)
         val paramSyms = mkParams(methodSym)
         val selector  = mkSel(paramSyms)
@@ -2432,7 +2431,7 @@ trait Typers extends Modes with Adaptations with Tags {
             if (isPartial) parentsPartial(List(methFormals.head, resTp))
             else addSerializable(abstractFunctionType(methFormals, resTp))
           )
-          anonClass setInfo ClassInfoType(parents, newScope, Nil, anonClass)
+          anonClass setInfo ClassInfoType(parents, newScope, anonClass)
           methodSym setInfoAndEnter MethodType(paramSyms, resTp)
 
           DefDef(methodSym, methodBodyTyper.virtualizedMatch(match_, mode, resTp))
@@ -2443,7 +2442,7 @@ trait Typers extends Modes with Adaptations with Tags {
       def applyOrElseMethodDef = {
         // rig the show so we can get started typing the method body -- later we'll correct the infos...
         // targs were type arguments for PartialFunction, so we know they will work for AbstractPartialFunction as well
-        anonClass setInfo ClassInfoType(parentsPartial(targs), newScope, Nil, anonClass)
+        anonClass setInfo ClassInfoType(parentsPartial(targs), newScope, anonClass)
         val methodSym = anonClass.newMethod(nme.applyOrElse, tree.pos, FINAL | OVERRIDE)
 
         // create the parameter that corresponds to the function's parameter
@@ -2467,7 +2466,7 @@ trait Typers extends Modes with Adaptations with Tags {
           val match_ = methodBodyTyper.typedMatch(gen.mkUnchecked(selector), cases, mode, ptRes)
           val resTp = match_.tpe
 
-          anonClass setInfo ClassInfoType(parentsPartial(List(argTp, resTp)), newScope, Nil, anonClass)
+          anonClass setInfo ClassInfoType(parentsPartial(List(argTp, resTp)), newScope, anonClass)
           B1 setInfo TypeBounds.lower(resTp)
           anonClass.info.decls enter methodSym // methodSym's info need not change (B1's bound has been updated instead)
 

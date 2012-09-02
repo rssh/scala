@@ -227,10 +227,10 @@ trait Importers { self: SymbolTable =>
           TypeBounds(importType(lo), importType(hi))
         case from.BoundedWildcardType(bounds) =>
           BoundedWildcardType(importTypeBounds(bounds))
-        case from.ClassInfoType(parents, decls, exports, clazz) =>
+        case from.ClassInfoType(parents, decls, clazz) =>
           val myclazz = importSymbol(clazz)
           val myscope = if (myclazz.isPackageClass) newPackageScope(myclazz) else newScope
-          val myclazzTpe = ClassInfoType(parents map importType, myscope, exports map importImportSymbol, myclazz)
+          val myclazzTpe = ClassInfoType(parents map importType, myscope, myclazz)
           myclazz setInfo GenPolyType(myclazz.typeParams, myclazzTpe) // needed so that newly created symbols find their scope
           decls foreach importSymbol // will enter itself into myclazz
           myclazzTpe

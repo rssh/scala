@@ -242,8 +242,8 @@ trait Types { self: Universe =>
    *  itself.
    */
   abstract class ClassInfoTypeExtractor {
-    def apply(parents: List[Type], decls: Scope, implicitImports: List[ImportSymbol],  typeSymbol: Symbol): ClassInfoType
-    def unapply(tpe: ClassInfoType): Option[(List[Type], Scope, List[ImportSymbol], Symbol)]
+    def apply(parents: List[Type], decls: Scope, typeSymbol: Symbol): ClassInfoType
+    def unapply(tpe: ClassInfoType): Option[(List[Type], Scope, Symbol)]
   }
 
   /** The `MethodType` type signature is used to indicate parameters and result type of a method

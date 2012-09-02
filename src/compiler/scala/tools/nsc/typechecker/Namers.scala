@@ -310,7 +310,7 @@ trait Namers extends MethodSynthesis {
       else {
         val pkg          = pkgOwner.newPackage(pid.name.toTermName, pos)
         val pkgClass     = pkg.moduleClass
-        val pkgClassInfo = new PackageClassInfoType(Nil,newPackageScope(pkgClass), pkgClass)
+        val pkgClassInfo = new PackageClassInfoType(newPackageScope(pkgClass), pkgClass)
 
         pkgClass setInfo pkgClassInfo
         pkg setInfo pkgClass.tpe
@@ -864,7 +864,7 @@ trait Namers extends MethodSynthesis {
       for (cda <- module.attachments.get[ConstructorDefaultsAttachment]) {
         cda.companionModuleClassNamer = templateNamer
       }
-      ClassInfoType(parents, decls, Nil, clazz)
+      ClassInfoType(parents, decls, clazz)
     }
 
     private def classSig(tparams: List[TypeDef], impl: Template): Type = {
@@ -1321,9 +1321,9 @@ trait Namers extends MethodSynthesis {
     def includeParent(tpe: Type, parent: Symbol): Type = tpe match {
       case PolyType(tparams, restpe) =>
         PolyType(tparams, includeParent(restpe, parent))
-      case ClassInfoType(parents, decls, exports, clazz) =>
+      case ClassInfoType(parents, decls, clazz) =>
         if (parents exists (_.typeSymbol == parent)) tpe
-        else ClassInfoType(parents :+ parent.tpe, decls, exports, clazz)
+        else ClassInfoType(parents :+ parent.tpe, decls, clazz)
       case _ =>
         tpe
     }

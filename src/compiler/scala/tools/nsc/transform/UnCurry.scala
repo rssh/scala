@@ -254,7 +254,7 @@ abstract class UnCurry extends InfoTransform
             else addSerializable(ObjectClass.tpe, fun.tpe)
           )
           val anonClass = fun.symbol.owner newAnonymousFunctionClass(fun.pos, inConstructorFlag) addAnnotation serialVersionUIDAnnotation
-          anonClass setInfo ClassInfoType(parents, newScope, Nil, anonClass)
+          anonClass setInfo ClassInfoType(parents, newScope, anonClass)
 
           val targs     = fun.tpe.typeArgs
           val (formals, restpe) = (targs.init, targs.last)
@@ -313,7 +313,7 @@ abstract class UnCurry extends InfoTransform
 
       val anonClass = fun.symbol.owner newAnonymousFunctionClass(fun.pos, inConstructorFlag) addAnnotation serialVersionUIDAnnotation
       val parents   = addSerializable(appliedType(AbstractPartialFunctionClass, targs: _*))
-      anonClass setInfo ClassInfoType(parents, newScope, Nil, anonClass)
+      anonClass setInfo ClassInfoType(parents, newScope, anonClass)
 
       // duplicate before applyOrElseMethodDef is run so that it does not mess up our trees and label symbols (we have a fresh set)
       // otherwise `TreeSymSubstituter(fun.vparams map (_.symbol), params)` won't work as the subst has been run already

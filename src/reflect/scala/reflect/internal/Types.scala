@@ -632,7 +632,10 @@ trait Types extends api.Types { self: SymbolTable =>
     /** For a classtype or refined type - implicit imports, the empty scope
      * for all other types.
      */
-    def implicitImports: List[ImportSymbol] = Nil 
+    def implicitImports: List[ImportSymbol] = decls.lookupAll(nme.IMPORT) flatMap {
+                                                  case sym: ImportSymbol => if (sym.isImplicit) Some(sym) else None
+                                              } toList
+
 
     /** Find name in implicit imports
      */
@@ -1913,7 +1916,6 @@ trait Types extends api.Types { self: SymbolTable =>
   case class ClassInfoType(
     override val parents: List[Type],
     override val decls: Scope,
-    override val implicitImports: List[ImportSymbol],
     override val typeSymbol: Symbol) extends CompoundType with ClassInfoTypeApi
   {
     validateClassInfo(this)
@@ -2086,8 +2088,8 @@ trait Types extends api.Types { self: SymbolTable =>
 
   object ClassInfoType extends ClassInfoTypeExtractor
 
-  class PackageClassInfoType(implicitImports: List[ImportSymbol], decls: Scope, clazz: Symbol)
-  extends ClassInfoType(List(), decls, implicitImports, clazz)
+  class PackageClassInfoType(decls: Scope, clazz: Symbol)
+  extends ClassInfoType(List(), decls, clazz)
 
   /** A class representing a constant type.
    *
@@ -3882,8 +3884,8 @@ trait Types extends api.Types { self: SymbolTable =>
     def apply(tp: Type): Type = tp match {
       case rt @ RefinedType(parents, decls) if !decls.isEmpty =>
         mapOver(copyRefinedType(rt, parents, EmptyScope))
-      case ClassInfoType(parents, decls, implicitImports, clazz) if !decls.isEmpty =>
-        mapOver(ClassInfoType(parents, EmptyScope, implicitImports, clazz))
+      case ClassInfoType(parents, decls, clazz) if !decls.isEmpty =>
+        mapOver(ClassInfoType(parents, EmptyScope, clazz))
       case _ =>
         mapOver(tp)
     }
@@ -5185,12 +5187,12 @@ trait Types extends api.Types { self: SymbolTable =>
       // Lukas: we need to check (together) whether we should also include parameter types
       // of PolyType and MethodType in adaptToNewRun
 
-      case ClassInfoType(parents, decls, implicitImports, clazz) =>
+      case ClassInfoType(parents, decls, clazz) =>
         if (clazz.isPackageClass) tp
         else {
           val parents1 = parents mapConserve (this)
           if (parents1 eq parents) tp
-          else ClassInfoType(parents1, decls, implicitImports, clazz)
+          else ClassInfoType(parents1, decls, clazz)
         }
       case RefinedType(parents, decls) =>
         val parents1 = parents mapConserve (this)

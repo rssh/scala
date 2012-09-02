@@ -182,9 +182,9 @@ trait GenTypes {
       case tpe @ ExistentialType(tparams, underlying) =>
         tparams foreach reifySymDef
         mirrorFactoryCall(tpe, reify(tparams), reify(underlying))
-      case tpe @ ClassInfoType(parents, decls, exports, clazz) =>
+      case tpe @ ClassInfoType(parents, decls, clazz) =>
         reifySymDef(clazz)
-        mirrorFactoryCall(tpe, reify(parents), reifyScope(decls), reify(exports), reify(tpe.typeSymbol))
+        mirrorFactoryCall(tpe, reify(parents), reifyScope(decls), reify(tpe.typeSymbol))
       case tpe @ MethodType(params, restpe) =>
         params foreach reifySymDef
         mirrorFactoryCall(tpe, reify(params), reify(restpe))

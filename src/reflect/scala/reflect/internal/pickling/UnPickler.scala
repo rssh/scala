@@ -64,8 +64,6 @@ abstract class UnPickler /*extends reflect.generic.UnPickler*/ {
     /** A map from symbols to their associated `decls` scopes */
     private val symScopes = mutable.HashMap[Symbol, Scope]()
 
-    private val symImplicitImports = mutable.HashMap[Symbol, List[ImportSymbol]]()
-
     //println("unpickled " + classRoot + ":" + classRoot.rawInfo + ", " + moduleRoot + ":" + moduleRoot.rawInfo);//debug
 
     // Laboriously unrolled for performance.
@@ -114,15 +112,6 @@ abstract class UnPickler /*extends reflect.generic.UnPickler*/ {
 
     /** The `decls` scope associated with given symbol */
     protected def symScope(sym: Symbol) = symScopes.getOrElseUpdate(sym, newScope)
-
-    protected def rememberSymImplicitImport(sym: Symbol, ii: ImportSymbol):Unit =
-    {
-      symImplicitImports.update(sym,
-              symImplicitImports.getOrElse(sym,List()) :+ ii
-      )
-    }
-
-    /** The `implicitImpots` associated with given symbol */
 
     /** Does entry represent an (internal) symbol */
     protected def isSymbolEntry(i: Int): Boolean = {
@@ -284,8 +273,7 @@ abstract class UnPickler /*extends reflect.generic.UnPickler*/ {
           if (atEnd) {
             assert(!sym.isSuperAccessor, sym)
             newLazyTypeRef(inforef)
-          }
-          else {
+          } else {
             assert(sym.isSuperAccessor || sym.isParamAccessor, sym)
             newLazyTypeRefAndAlias(inforef, readNat())
           }
@@ -293,11 +281,7 @@ abstract class UnPickler /*extends reflect.generic.UnPickler*/ {
         if (sym.owner.isClass && sym != classRoot && sym != moduleRoot &&
             !sym.isModuleClass && !sym.isRefinementClass && !sym.isTypeParameter && 
             !sym.isExistentiallyBound) {
-          if (sym.isImport) {
-            rememberSymImplicitImport(sym.owner,sym.asImport)
-          } else {
-            symScope(sym.owner) enter sym
-          }
+          symScope(sym.owner) enter sym
         }
         sym
       }
@@ -315,7 +299,6 @@ abstract class UnPickler /*extends reflect.generic.UnPickler*/ {
           )
           if (!atEnd)
             sym.typeOfThis = newLazyTypeRef(readNat())
-
           sym
         case MODULEsym =>
           val clazz = at(inforef, () => readType()).typeSymbol // after the NMT_TRANSITION period, we can leave off the () => ... ()
@@ -337,7 +320,6 @@ abstract class UnPickler /*extends reflect.generic.UnPickler*/ {
             }
             owner.newImport(NoPosition, base, selects, true)
           }
-
         case _ =>
           errorBadSignature("bad symbol tag: " + tag)
       })
@@ -381,7 +363,6 @@ abstract class UnPickler /*extends reflect.generic.UnPickler*/ {
           val clazz = readSymbolRef()
           ClassInfoType(until(end, readTypeRef), 
                         symScope(clazz), 
-                        symImplicitImports.getOrElse(clazz,Nil),
                         clazz)
         case METHODtpe | IMPLICITMETHODtpe =>
           val restpe = readTypeRef()

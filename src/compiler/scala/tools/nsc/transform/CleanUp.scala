@@ -580,7 +580,7 @@ abstract class CleanUp extends Transform with ast.TreeDSL {
               // create the companion class if it does not exist
               val enclosing = owner.owner
               val compclass = enclosing.newClass(newTypeName(owner.name.toString))
-              compclass setInfo ClassInfoType(List(ObjectClass.tpe), newScope, Nil, compclass)
+              compclass setInfo ClassInfoType(List(ObjectClass.tpe), newScope, compclass)
               enclosing.info.decls enter compclass
 
               val compclstree = ClassDef(compclass, NoMods, ListOfNil, ListOfNil, List(), tree.pos)

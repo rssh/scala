@@ -146,12 +146,12 @@ trait Erasure {
         apply(mergeParents(parents))
       case AnnotatedType(_, atp, _) =>
         apply(atp)
-      case ClassInfoType(parents, decls, implicitImports, clazz) =>
+      case ClassInfoType(parents, decls, clazz) =>
         ClassInfoType(
           if (clazz == ObjectClass || isPrimitiveValueClass(clazz)) Nil
           else if (clazz == ArrayClass) List(ErasedObject)
           else removeLaterObjects(parents map this),
-          decls, implicitImports, clazz)
+          decls, clazz)
       case _ =>
         mapOver(tp)
     }

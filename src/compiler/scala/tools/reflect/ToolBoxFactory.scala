@@ -107,7 +107,7 @@ abstract class ToolBoxFactory[U <: JavaUniverse](val u: U) { factorySelf =>
         // it inaccessible then please put it somewhere designed for that
         // rather than polluting the empty package with synthetics.
         val ownerClass    = rootMirror.EmptyPackageClass.newClassSymbol(newTypeName("<expression-owner>"))
-        build.setTypeSignature(ownerClass, ClassInfoType(List(ObjectClass.tpe), newScope, Nil, ownerClass))
+        build.setTypeSignature(ownerClass, ClassInfoType(List(ObjectClass.tpe), newScope, ownerClass))
         val owner         = ownerClass.newLocalDummy(expr.pos)
         var currentTyper  = typer.atOwner(expr, owner)
         val wrapper1      = if (!withImplicitViewsDisabled) (currentTyper.context.withImplicitsEnabled[Tree] _) else (currentTyper.context.withImplicitsDisabled[Tree] _)
@@ -177,7 +177,7 @@ abstract class ToolBoxFactory[U <: JavaUniverse](val u: U) { factorySelf =>
           val (obj, mclazz) = rootMirror.EmptyPackageClass.newModuleAndClassSymbol(
             nextWrapperModuleName())
 
-          val minfo = ClassInfoType(List(ObjectClass.tpe), newScope, Nil, obj.moduleClass)
+          val minfo = ClassInfoType(List(ObjectClass.tpe), newScope, obj.moduleClass)
           obj.moduleClass setInfo minfo
           obj setInfo obj.moduleClass.tpe
 

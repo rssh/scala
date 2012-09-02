@@ -914,7 +914,7 @@ abstract class RefChecks extends InfoTransform with reflect.internal.transform.R
               if (v != AnyVariance && sym.variance != v * variance) {
                 //Console.println("relativeVariance(" + base + "," + sym + ") = " + v);//DEBUG
                 def tpString(tp: Type) = tp match {
-                  case ClassInfoType(parents, _, _, clazz) => "supertype "+intersectionType(parents, clazz.owner)
+                  case ClassInfoType(parents, _, clazz) => "supertype "+intersectionType(parents, clazz.owner)
                   case _ => "type "+tp
                 }
                 unit.error(base.pos,
@@ -929,7 +929,7 @@ abstract class RefChecks extends InfoTransform with reflect.internal.transform.R
             // -- the interesting case is in type application, see checkKindBounds in Infer
             if (args.nonEmpty)
               validateVarianceArgs(args, variance, sym.typeParams)
-          case ClassInfoType(parents, decls, exports, symbol) =>
+          case ClassInfoType(parents, decls, symbol) =>
             validateVariances(parents, variance)
           case RefinedType(parents, decls) =>
             validateVariances(parents, variance)

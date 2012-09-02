@@ -605,7 +605,7 @@ abstract class TreeBrowsers {
                         toDocument(parents) :: ")")
         )
 
-      case ClassInfoType(parents, defs, exports, clazz) =>
+      case ClassInfoType(parents, defs, clazz) =>
         Document.group(
           Document.nest(4,"ClassInfoType(" :/:
                         toDocument(parents) :: ", " :/:

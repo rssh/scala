@@ -587,7 +587,7 @@ abstract class SpecializeTypes extends InfoTransform with TypingTransformers {
               " => " + sClass.defStringSeenAs(sClass.typeOfThis)
           )
         }
-        GenPolyType(newClassTParams, ClassInfoType(parents ::: extraSpecializedMixins, decls1, clazz.info.implicitImports, sClass))
+        GenPolyType(newClassTParams, ClassInfoType(parents ::: extraSpecializedMixins, decls1, sClass))
       }
 
       exitingSpecialize(sClass setInfo specializedInfoType)
@@ -1110,12 +1110,12 @@ abstract class SpecializeTypes extends InfoTransform with TypingTransformers {
       def keepAnnotation(annot: AnnotationInfo) = !(annot matches uncheckedVarianceClass)
 
       override def mapOver(tp: Type): Type = tp match {
-        case ClassInfoType(parents, decls, exports, clazz) =>
+        case ClassInfoType(parents, decls, clazz) =>
           val parents1  = parents mapConserve this
           val decls1    = mapOver(decls)
 
           if ((parents1 eq parents) && (decls1 eq decls)) tp
-          else ClassInfoType(parents1, decls1, exports, clazz)
+          else ClassInfoType(parents1, decls1, clazz)
         case _ =>
           super.mapOver(tp)
       }
@@ -1165,7 +1165,7 @@ abstract class SpecializeTypes extends InfoTransform with TypingTransformers {
   override def transformInfo(sym: Symbol, tpe: Type): Type = {
     if (settings.nospecialization.value && currentRun.compiles(sym)) tpe
     else tpe.resultType match {
-      case cinfo @ ClassInfoType(parents, decls, exports, clazz) if !unspecializableClass(cinfo) =>
+      case cinfo @ ClassInfoType(parents, decls, clazz) if !unspecializableClass(cinfo) =>
         val tparams  = tpe.typeParams
         if (tparams.isEmpty)
           exitingSpecialize(parents map (_.typeSymbol.info))
@@ -1178,7 +1178,7 @@ abstract class SpecializeTypes extends InfoTransform with TypingTransformers {
         }
         val newScope = newScopeWith(specializeClass(clazz, typeEnv(clazz)) ++ specialOverrides(clazz): _*)
         // If tparams.isEmpty, this is just the ClassInfoType.
-        GenPolyType(tparams, ClassInfoType(parents1, newScope, exports, clazz))
+        GenPolyType(tparams, ClassInfoType(parents1, newScope, clazz))
       case _ =>
         tpe
     }

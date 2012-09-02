@@ -62,7 +62,7 @@ abstract class Flatten extends InfoTransform {
       case TypeRef(pre, sym, args) if isFlattenablePrefix(pre) =>
         assert(args.isEmpty && sym.enclosingTopLevelClass != NoSymbol, sym.ownerChain)
         typeRef(sym.enclosingTopLevelClass.owner.thisType, sym, Nil)
-      case ClassInfoType(parents, decls, exports, clazz) =>
+      case ClassInfoType(parents, decls, clazz) =>
         var parents1 = parents
         val decls1 = scopeTransform(clazz) {
           val decls1 = newScope
@@ -85,7 +85,7 @@ abstract class Flatten extends InfoTransform {
           }
           decls1
         }
-        ClassInfoType(parents1, decls1, exports, clazz)
+        ClassInfoType(parents1, decls1, clazz)
       case MethodType(params, restp) =>
         val restp1 = apply(restp)
         if (restp1 eq restp) tp else copyMethodType(tp, params, restp1)

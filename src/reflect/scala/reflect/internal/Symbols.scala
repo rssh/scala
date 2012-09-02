@@ -361,12 +361,12 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
       newClassSymbol(name, pos, newFlags)
 
     /** A new class with its info set to a ClassInfoType with given scope and parents. */
-    def newClassWithInfo(name: TypeName, parents: List[Type], scope: Scope, exports: List[ImportSymbol],  pos: Position = NoPosition, newFlags: Long = 0L): ClassSymbol = {
+    def newClassWithInfo(name: TypeName, parents: List[Type], scope: Scope, pos: Position = NoPosition, newFlags: Long = 0L): ClassSymbol = {
       val clazz = newClass(name, pos, newFlags)
-      clazz setInfo ClassInfoType(parents, scope, exports, clazz)
+      clazz setInfo ClassInfoType(parents, scope, clazz)
     }
     final def newErrorClass(name: TypeName): ClassSymbol =
-      newClassWithInfo(name, Nil, new ErrorScope(this), Nil, pos, SYNTHETIC | IS_ERROR)
+      newClassWithInfo(name, Nil, new ErrorScope(this), pos, SYNTHETIC | IS_ERROR)
 
     final def newModuleClass(name: TypeName, pos: Position = NoPosition, newFlags: Long = 0L): ModuleClassSymbol =
       newModuleClassSymbol(name, pos, newFlags | MODULE)
@@ -1453,7 +1453,7 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
      */
     def makeSerializable() {
       info match {
-        case ci @ ClassInfoType(_, _, _, _) =>
+        case ci @ ClassInfoType(_, _, _) =>
           updateInfo(ci.copy(parents = ci.parents :+ SerializableClass.tpe))
         case i =>
           abort("Only ClassInfoTypes can be made serializable: "+ i)

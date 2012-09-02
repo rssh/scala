@@ -29,7 +29,7 @@ trait Definitions extends api.StandardDefinitions {
 
   private def enterNewClass(owner: Symbol, name: TypeName, parents: List[Type], flags: Long = 0L): ClassSymbol = {
     val clazz = owner.newClassSymbol(name, NoPosition, flags)
-    clazz setInfoAndEnter ClassInfoType(parents, newScope, List(), clazz)
+    clazz setInfoAndEnter ClassInfoType(parents, newScope, clazz)
   }
   private def newMethod(owner: Symbol, name: TermName, formals: List[Type], restpe: Type, flags: Long = 0L): MethodSymbol = {
     val msym   = owner.newMethod(name.encode, NoPosition, flags)
@@ -219,11 +219,11 @@ trait Definitions extends api.StandardDefinitions {
     }
 
     private def fixupAsAnyTrait(tpe: Type): Type = tpe match {
-      case ClassInfoType(parents, decls, imports, clazz) =>
+      case ClassInfoType(parents, decls, clazz) =>
         if (parents.head.typeSymbol == AnyClass) tpe
         else {
           assert(parents.head.typeSymbol == ObjectClass, parents)
-          ClassInfoType(AnyClass.tpe :: parents.tail, decls, imports, clazz)
+          ClassInfoType(AnyClass.tpe :: parents.tail, decls, clazz)
         }
       case PolyType(tparams, restpe) =>
         PolyType(tparams, fixupAsAnyTrait(restpe))
@@ -259,7 +259,7 @@ trait Definitions extends api.StandardDefinitions {
     sealed abstract class BottomClassSymbol(name: TypeName, parent: Symbol) extends ClassSymbol(ScalaPackageClass, NoPosition, name) {
       locally {
         this initFlags ABSTRACT | FINAL
-        this setInfoAndEnter ClassInfoType(List(parent.tpe), newScope, Nil, this)
+        this setInfoAndEnter ClassInfoType(List(parent.tpe), newScope, this)
       }
       final override def isBottomClass = true
     }
@@ -1058,7 +1058,7 @@ trait Definitions extends api.StandardDefinitions {
       val tparam  = clazz.newSyntheticTypeParam("T0", flags)
       val parents = List(AnyRefClass.tpe, parentFn(tparam))
 
-      clazz setInfo GenPolyType(List(tparam), ClassInfoType(parents, newScope, Nil, clazz))
+      clazz setInfo GenPolyType(List(tparam), ClassInfoType(parents, newScope, clazz))
     }
 
     def newPolyMethod(typeParamCount: Int, owner: Symbol, name: TermName, flags: Long)(createFn: PolyMethodCreator): MethodSymbol = {
@@ -1175,8 +1175,8 @@ trait Definitions extends api.StandardDefinitions {
      *  to evade that AnyRef.
      */
     private def setParents(sym: Symbol, parents: List[Type]): Symbol = sym.rawInfo match {
-      case ClassInfoType(_, scope, imports, clazz) =>
-        sym setInfo ClassInfoType(parents, scope, imports, clazz)
+      case ClassInfoType(_, scope, clazz) =>
+        sym setInfo ClassInfoType(parents, scope, clazz)
       case _ =>
         sym
     }

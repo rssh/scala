@@ -534,8 +534,8 @@ abstract class ClassfileParser {
     instanceScope = newScope
     staticScope = newScope
 
-    val classInfo = ClassInfoType(parseParents, instanceScope, Nil, clazz)
-    val staticInfo = ClassInfoType(List(), staticScope, Nil, moduleClass)
+    val classInfo = ClassInfoType(parseParents, instanceScope, clazz)
+    val staticInfo = ClassInfoType(List(), staticScope, moduleClass)
 
     if (!isScala && !isScalaRaw)
       enterOwnInnerClasses
@@ -839,7 +839,7 @@ abstract class ClassfileParser {
         while (index < end) {
           parents += sig2type(tparams, false)  // here the variance doesnt'matter
         }
-        ClassInfoType(parents.toList, instanceScope, Nil, sym)
+        ClassInfoType(parents.toList, instanceScope, sym)
       }
     GenPolyType(ownTypeParams, tpe)
   } // sigToType

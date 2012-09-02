@@ -152,7 +152,7 @@ abstract class Pickler extends SubComponent {
             val (locals, globals) = sym.children partition (_.isLocalClass)
             val children =
               if (locals.isEmpty) globals
-              else globals + sym.newClassWithInfo(tpnme.LOCAL_CHILD, List(sym.tpe), EmptyScope, Nil, pos = sym.pos)
+              else globals + sym.newClassWithInfo(tpnme.LOCAL_CHILD, List(sym.tpe), EmptyScope, pos = sym.pos)
 
             putChildren(sym, children.toList sortBy (_.sealedSortName))
           }
@@ -196,8 +196,8 @@ abstract class Pickler extends SubComponent {
           for (m <- decls.iterator)
             if (m.owner != rclazz) assert(false, "bad refinement member "+m+" of "+tp+", owner = "+m.owner)
           putSymbol(rclazz); putTypes(parents); putSymbols(decls.toList)
-        case ClassInfoType(parents, decls, exports, clazz) =>
-          putSymbol(clazz); putTypes(parents); putSymbols(decls.toList); putSymbols(exports);
+        case ClassInfoType(parents, decls, clazz) =>
+          putSymbol(clazz); putTypes(parents); putSymbols(decls.toList);
         case MethodType(params, restpe) =>
           putType(restpe); putSymbols(params)
         case NullaryMethodType(restpe) =>
@@ -592,7 +592,7 @@ abstract class Pickler extends SubComponent {
           writeRef(lo); writeRef(hi); TYPEBOUNDStpe
         case tp @ RefinedType(parents, decls) =>
           writeRef(tp.typeSymbol); writeRefs(parents); REFINEDtpe
-        case ClassInfoType(parents, decls, exports, clazz) =>
+        case ClassInfoType(parents, decls, clazz) =>
           writeRef(clazz); writeRefs(parents); CLASSINFOtpe
         case mt @ MethodType(formals, restpe) =>
           writeRef(restpe); writeRefs(formals) ; METHODtpe
@@ -1046,7 +1046,7 @@ abstract class Pickler extends SubComponent {
           print("TYPEBOUNDStpe "); printRef(lo); printRef(hi);
         case tp @ RefinedType(parents, decls) =>
           print("REFINEDtpe "); printRef(tp.typeSymbol); printRefs(parents);
-        case ClassInfoType(parents, decls, exports, clazz) =>
+        case ClassInfoType(parents, decls, clazz) =>
           print("CLASSINFOtpe "); printRef(clazz); printRefs(parents);
         case mt @ MethodType(formals, restpe) =>
           print("METHODtpe"); printRef(restpe); printRefs(formals)

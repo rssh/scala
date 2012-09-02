@@ -23,10 +23,10 @@ abstract class LambdaLift extends InfoTransform {
     def apply(tp: Type): Type = tp match {
       case TypeRef(NoPrefix, sym, Nil) if sym.isClass && !sym.isPackageClass =>
         typeRef(apply(sym.owner.enclClass.thisType), sym, Nil)
-      case ClassInfoType(parents, decls, exports, clazz) =>
+      case ClassInfoType(parents, decls, clazz) =>
         val parents1 = parents mapConserve this
         if (parents1 eq parents) tp
-        else ClassInfoType(parents1, decls, exports, clazz)
+        else ClassInfoType(parents1, decls, clazz)
       case _ =>
         mapOver(tp)
     }

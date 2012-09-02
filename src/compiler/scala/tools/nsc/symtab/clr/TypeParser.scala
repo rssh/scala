@@ -165,7 +165,7 @@ abstract class TypeParser {
       /* clazzMgdPtr but not clazzBoxed is mapped by clrTypes.types into an msil.Type instance,
          because there's no metadata-level representation for a "boxed valuetype" */
       val instanceDefsMgdPtr = newScope
-      val classInfoMgdPtr = ClassInfoType(definitions.anyvalparam, instanceDefsMgdPtr, Nil, clazzMgdPtr)
+      val classInfoMgdPtr = ClassInfoType(definitions.anyvalparam, instanceDefsMgdPtr, clazzMgdPtr)
       clazzMgdPtr.setFlag(flags)
       clazzMgdPtr.setInfo(classInfoMgdPtr)
     }
@@ -212,12 +212,12 @@ abstract class TypeParser {
         // methods, properties, events, fields are entered in a moment
         if (canBeTakenAddressOf) {
           val instanceDefsBoxed = newScope
-          ClassInfoType(parents.toList, instanceDefsBoxed, Nil, clazzBoxed)
+          ClassInfoType(parents.toList, instanceDefsBoxed, clazzBoxed)
         } else
-          ClassInfoType(parents.toList, instanceDefs, Nil, clazz)
+          ClassInfoType(parents.toList, instanceDefs, clazz)
       }
 
-    val staticInfo = ClassInfoType(List(), staticDefs, Nil, statics)
+    val staticInfo = ClassInfoType(List(), staticDefs, statics)
 
     clazz.setFlag(flags)
 
@@ -225,7 +225,7 @@ abstract class TypeParser {
       clazzBoxed.setInfo( if (ownTypeParams.isEmpty) classInfoAsInMetadata
                           else genPolyType(ownTypeParams, classInfoAsInMetadata) )
       clazzBoxed.setFlag(flags)
-      val rawValueInfoType = ClassInfoType(definitions.anyvalparam, instanceDefs, Nil, clazz)
+      val rawValueInfoType = ClassInfoType(definitions.anyvalparam, instanceDefs, clazz)
       clazz.setInfo( if (ownTypeParams.isEmpty) rawValueInfoType
                      else genPolyType(ownTypeParams, rawValueInfoType) )
     } else {

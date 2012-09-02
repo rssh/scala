@@ -2414,6 +2414,7 @@ self =>
      *           | var PatDcl
      *           | def FunDcl
      *           | type [nl] TypeDcl
+     *  ImplicitImport ::=  implicit Import
      *  }}}
      */
     def defOrDclOrImplicitImport(pos: Int, mods: Modifiers): List[Tree] = {

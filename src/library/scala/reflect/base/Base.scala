@@ -142,7 +142,7 @@ class Base extends Universe { self =>
   }
   implicit val RefinedTypeTag = ClassTag[RefinedType](classOf[RefinedType])
 
-  case class ClassInfoType(parents: List[Type], decls: Scope, implicitImports: List[ImportSymbol], override val typeSymbol: Symbol) extends CompoundType
+  case class ClassInfoType(parents: List[Type], decls: Scope, override val typeSymbol: Symbol) extends CompoundType
   object ClassInfoType extends ClassInfoTypeExtractor
   implicit val ClassInfoTypeTag = ClassTag[ClassInfoType](classOf[ClassInfoType])
 
