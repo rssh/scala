@@ -391,6 +391,11 @@ trait TypeKinds { self: ICodes =>
     case ExistentialType(_, t)           => toTypeKind(t)
     case AnnotatedType(_, t, _)          => toTypeKind(t)
     case RefinedType(parents, _)         => parents map toTypeKind reduceLeft lub
+  
+    // we have imports in scopes.
+    // must filter before
+    //case global.analyzer.ImportType(t)    => UNIT
+
     // For sure WildcardTypes shouldn't reach here either, but when
     // debugging such situations this may come in handy.
     // case WildcardType                    => REFERENCE(ObjectClass)

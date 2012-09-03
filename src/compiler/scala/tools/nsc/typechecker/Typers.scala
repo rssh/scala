@@ -2653,7 +2653,10 @@ trait Typers extends Modes with Adaptations with Tags {
             case imp @ Import(_, _,_) =>
               imp.symbol.initialize
               if (!imp.symbol.isError) {
-                context = context.makeNewImport(imp)
+                imp.symbol match {
+                   case isym:ImportSymbol =>
+                       context = context.makeNewImport(imp, isym)
+                }
                 typedImport(imp)
               } else EmptyTree
             case _ =>
@@ -2699,7 +2702,9 @@ trait Typers extends Modes with Adaptations with Tags {
           var e1 = scope.lookupNextEntry(e)
           while ((e1 ne null) && e1.owner == scope) {
             if (!accesses(e.sym, e1.sym) && !accesses(e1.sym, e.sym) &&
-                (e.sym.isType || inBlock || (e.sym.tpe matches e1.sym.tpe)))
+                (e.sym.isType || inBlock || (e.sym.tpe matches e1.sym.tpe)) &&
+                e.sym.name != nme.IMPORT
+               )
               // default getters are defined twice when multiple overloads have defaults. an
               // error for this is issued in RefChecks.checkDefaultsInOverloaded
               if (!e.sym.isErroneous && !e1.sym.isErroneous && !e.sym.hasDefaultFlag &&

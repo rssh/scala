@@ -1153,6 +1153,8 @@ abstract class Erasure extends AddInterfaces
           copyDefDef(tree)(tparams = Nil)
         case TypeDef(_, _, _, _) =>
           EmptyTree
+        case Import(_, _, _) =>
+          EmptyTree
 
         case _ =>
           tree

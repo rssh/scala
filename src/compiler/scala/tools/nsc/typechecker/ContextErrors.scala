@@ -607,7 +607,11 @@ trait ContextErrors {
         val isBug = sym0.isAbstractType && sym1.isAbstractType && (sym0.name startsWith "_$")
         val addendums = List(
           if (sym0.associatedFile eq sym1.associatedFile)
-            Some("conflicting symbols both originated in file '%s'".format(sym0.associatedFile.canonicalPath))
+            if (sym0.associatedFile eq null) {
+               Some("conflicting symbols both originated in internally generated trees")
+            } else {
+               Some("conflicting symbols both originated in file '%s'".format(sym0.associatedFile.canonicalPath))
+            }
           else if ((sym0.associatedFile ne null) && (sym1.associatedFile ne null))
             Some("conflicting symbols originated in files '%s' and '%s'".format(sym0.associatedFile.canonicalPath, sym1.associatedFile.canonicalPath))
           else None ,

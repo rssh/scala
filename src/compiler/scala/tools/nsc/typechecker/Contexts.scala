@@ -297,15 +297,22 @@ trait Contexts { self: Analyzer =>
     }
 
     def makeNewImport(sym: Symbol, isImplicit: Boolean): Context =
-      makeNewImport(gen.mkWildcardImport(sym,isImplicit))
+       makeNewImportTree(gen.mkWildcardImport(sym,isImplicit))
 
-    def makeNewImport(imp: Import): Context =
+    def makeNewImport(imp: Import, sym: ImportSymbol): Context =
     {
      // we can't add generation of implicit imports here, because call if
      // importInfo.qual.tpe give us 'cyclic reference error' since we in
-     // scope of type yer.
+     // scope of type yet.
+      scope enter sym
+      makeNewImportTree(imp: Import)
+    }
+
+    private def makeNewImportTree(imp: Import): Context =
+    {
       make(unit, imp, owner, scope, new ImportInfo(imp,depth) :: imports)
     }
+
 
     def make(tree: Tree, owner: Symbol, scope: Scope): Context =
       if (tree == this.tree && owner == this.owner && scope == this.scope) this

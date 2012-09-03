@@ -69,7 +69,20 @@ abstract class GenICode extends SubComponent  {
 
     def gen(trees: List[Tree], ctx: Context): Context = {
       var ctx1 = ctx
-      for (t <- trees) ctx1 = gen(t, ctx1)
+      for (t <- trees) {
+         t match {
+           case Import(_,_,_) => // skip
+           case _ =>
+                 try {
+                   ctx1 = gen(t, ctx1)
+                 } catch {
+                   case ex: Exception =>
+                     System.err.println("tree is: " + t.toString())
+                     ex.printStackTrace();
+                     throw new RuntimeException(ex);
+                 }
+         }
+      }
       ctx1
     }
 
@@ -1721,7 +1734,7 @@ abstract class GenICode extends SubComponent  {
       debugassert(ctx.clazz.symbol eq cls,
                "Classes are not the same: " + ctx.clazz.symbol + ", " + cls)
 
-      /** Non-method term members are fields, except for module members. Module
+      /** Non-method term members are fields, except for module members and imports. Module
        *  members can only happen on .NET (no flatten) for inner traits. There,
        *  a module symbol is generated (transformInfo in mixin) which is used
        *  as owner for the members of the implementation class (so that the
@@ -1730,7 +1743,7 @@ abstract class GenICode extends SubComponent  {
        */
       for (
         f <- cls.info.decls;
-        if !f.isMethod && f.isTerm && !f.isModule && !(f.owner.isModuleClass && f.hasStaticAnnotation)
+        if !f.isMethod && f.isTerm && !f.isModule && !f.isImport && !(f.owner.isModuleClass && f.hasStaticAnnotation)
       ) {
         ctx.clazz addField new IField(f)
       }
