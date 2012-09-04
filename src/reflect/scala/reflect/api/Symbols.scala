@@ -396,6 +396,7 @@ trait Symbols extends base.Symbols { self: Universe =>
     /* type */
     def base: Type
     def selectors: List[Pair[Name,Name]]
+    
 
   }
 

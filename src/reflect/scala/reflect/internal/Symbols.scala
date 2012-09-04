@@ -2127,6 +2127,7 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
       else if (isPackage) "package"
       else if (isModule) "object"
       else if (isSourceMethod) "def"
+      else if (isImport) "import"
       else if (isTerm && (!isParameter || isParamAccessor)) "val"
       else ""
 
@@ -2155,6 +2156,7 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
         else if (isClassConstructor && isPrimaryConstructor) ("primary constructor", "constructor", "PCTOR")
         else if (isClassConstructor) ("constructor", "constructor", "CTOR")
         else if (isSourceMethod) ("method", "method", "METH")
+        else if (isImport) ("import", "import", "IMPORT")
         else if (isTerm) ("value", "value", "VAL")
         else ("", "", "???")
       if (isSkolem) kind = (kind._1, kind._2, kind._3 + "#SKO")
@@ -2188,6 +2190,7 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
       || isClassConstructor       // this
       || isRefinementClass        // <refinement>
       || (name == nme.PACKAGE)    // package
+      || (name == nme.IMPORT)     // import
     )
 
     /** String representation of symbol's simple name.
@@ -2521,8 +2524,31 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
   class ImportSymbol protected[Symbols] (initOwner: Symbol, initPos: Position,  
                                          val base: Type, 
                                          val selectors: List[Pair[Name,Name]], 
-                                         val IsImplicit: Boolean)
+                                         override val isImplicit: Boolean)
      extends TermSymbol(initOwner, initPos, nme.IMPORT) with ImportSymbolApi 
+  {
+    require( base ne null )
+    override def decodedName = baseName + "." + selectorsName +
+                                "(" + implicitString + ")"
+
+    def baseName: String = if (base ne null) base.toString else "null" ;
+
+    def selectorsName: String = 
+      if (selectors eq null) 
+       "null" 
+      else 
+       selectors map { (x:Pair[Name,Name]) =>
+          x._1.toString +
+          (if ((x._2 ne null) && x._2 != x._1) {
+            "=>" + x._2.toString 
+          } else "")
+       } mkString "," 
+
+    def implicitString = if (isImplicit) "implicit" else ""
+
+    override def toString = (if (isImplicit) implicitString+" " else "")+"import "+baseName+"."+selectorsName
+
+  }
 
   implicit val ImportSymbolTag = ClassTag[ImportSymbol](classOf[ImportSymbol])
 
