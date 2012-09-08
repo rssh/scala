@@ -293,7 +293,19 @@ trait Namers extends MethodSynthesis {
     private def createImportSymbol(tree: Tree) = {
       tree match {
         case Import(expr,selectors,isImplicit) =>
-           NoSymbol.newImport(tree.pos, expr.tpe,
+           NoSymbol.newImport(tree.pos, 
+                                 new SimpleTypeProxy {
+
+                                      //  expr.tpe will be set after call of completerOf to
+                                      //  import tree, so use proxy for deffering
+                                      override def underlying: Type = expr.tpe
+                                      
+                                      override def safeToString = "<["+ 
+                                            (if (underlying ne null) 
+                                                  underlying.safeToString
+                                             else "null")  + "]>"
+
+                                 },
                               selectors.map(x=>(x.name,x.rename)),
                               isImplicit
                              ) setInfo completerOf(tree)

@@ -70,6 +70,9 @@ import util.ThreeValues._
     // for dependent method types: a type referring to a method parameter.
   case ErasedValueType(clazz, underlying)
     // only used during erasure of derived value classes.
+
+  ImportType
+
 */
 
 trait Types extends api.Types { self: SymbolTable =>
@@ -243,6 +246,7 @@ trait Types extends api.Types { self: SymbolTable =>
     override def prefix = underlying.prefix
     override def decls = underlying.decls
     override def implicitImports = underlying.implicitImports
+    //override def implicitImport(name: TermName): Symbol = underlying.implicitImport(name)
     override def baseType(clazz: Symbol) = underlying.baseType(clazz)
     override def baseTypeSeq = underlying.baseTypeSeq
     override def baseTypeSeqDepth = underlying.baseTypeSeqDepth
@@ -639,21 +643,21 @@ trait Types extends api.Types { self: SymbolTable =>
 
     /** Find name in implicit imports
      */
-    def implicitImport(name: TermName): Symbol =
+    def implicitImport(name: Name): Symbol =
            findImplicitImport(name,Set())._1
 
-    def findImplicitImport(name: TermName, rtrack:Set[Type]): (Symbol, Set[Type]) =
+    private def findImplicitImport(name: Name, rtrack:Set[Type]): (Symbol, Set[Type]) =
     {
       var result: Symbol = NoSymbol
       var nrtrack = (rtrack + this)
       if (!rtrack.contains(this)) {
         var cii = implicitImports
-        while( cii!=Nil && result != NoSymbol) {
+        while( cii!=Nil && result == NoSymbol) {
          val c = cii.head
          cii = cii.tail
          var csel = c.selectors
          var renamed = false
-         while ( csel != Nil && result != NoSymbol ) {
+         while ( csel != Nil && result == NoSymbol ) {
             val sel = csel.head
             csel = csel.tail
             if (sel._2 == name) {
@@ -662,6 +666,8 @@ trait Types extends api.Types { self: SymbolTable =>
                 renamed = true 
             } else if (sel._1 == nme.WILDCARD && !renamed) {
                 result = c.base.nonLocalMember(name)
+            } else {
+                 // not here, skip
             }
          }
          if (result == NoSymbol) {

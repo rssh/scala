@@ -302,9 +302,10 @@ trait Contexts { self: Analyzer =>
     def makeNewImport(imp: Import, sym: ImportSymbol): Context =
     {
      // we can't add generation of implicit imports here, because call if
-     // importInfo.qual.tpe give us 'cyclic reference error' since we in
-     // scope of type yet.
-      scope enter sym
+     // importInfo.qual.tpe give us 'cyclic reference error'  (we are before typing here)
+      if (imp.isImplicit) {
+        scope enter sym
+      }
       makeNewImportTree(imp: Import)
     }
 

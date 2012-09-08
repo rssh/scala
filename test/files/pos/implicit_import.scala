@@ -9,12 +9,12 @@ package x {
 package object q {
   implicit import x._
   class Y {
-   print("y.Y")
+   print("q.Y")
   }
 }
 
 object A
 {
  import _root_.vii.q._
- val x = new X()
+ val xx = new X()
 }
