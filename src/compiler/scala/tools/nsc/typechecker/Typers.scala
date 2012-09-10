@@ -1998,8 +1998,7 @@ trait Typers extends Modes with Adaptations with Tags {
         val unit = new CompilationUnit(file)
         new syntaxAnalyzer.UnitParser(unit)
       }
-      // TODO: are we need something special for implicit imports here ?
-      val trees = stringParser(useCase.body+";").nonLocalDefOrDclOrImplicitImport
+      val trees = stringParser(useCase.body+";").nonLocalDefOrDcl
       val enclClass = context.enclClass.owner
       def defineAlias(name: Name) =
         if (context.scope.lookup(name) == NoSymbol) {
