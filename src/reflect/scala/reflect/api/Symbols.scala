@@ -10,6 +10,7 @@ trait Symbols extends base.Symbols { self: Universe =>
   override type ModuleSymbol >: Null <: TermSymbol with ModuleSymbolApi
   override type ClassSymbol >: Null <: TypeSymbol with ClassSymbolApi
   override type ImportSymbol >: Null <: TermSymbol with ImportSymbolApi
+  override type ExportSymbol >: Null <: TermSymbol with ExportSymbolApi
   override type FreeTermSymbol >: Null <: TermSymbol with FreeTermSymbolApi
   override type FreeTypeSymbol >: Null <: TypeSymbol with FreeTypeSymbolApi
 
@@ -396,9 +397,16 @@ trait Symbols extends base.Symbols { self: Universe =>
     /* type */
     def base: Type
     def selectors: List[Pair[Name,Name]]
-    
 
   }
+
+  trait ExportSymbolApi extends TermSymbolApi with ExportSymbolBase { this: ExportSymbol =>
+
+    def base: Type
+    def selectors: List[Pair[Name,Name]]
+
+  }
+
 
   /** The API of free term symbols */
   trait FreeTermSymbolApi extends TermSymbolApi with FreeTermSymbolBase { this: FreeTermSymbol =>

@@ -67,6 +67,7 @@ object PickleFormat {
  *                  | 49 TREE len_Nat 7 TYPEDEFtree type_Ref sym_Ref mods_Ref name_Ref tree_Ref {tree_Ref}
  *                  | 49 TREE len_Nat 8 LABELtree type_Ref sym_Ref tree_Ref {tree_Ref}
  *                  | 49 TREE len_Nat 9 IMPORTtree type_Ref sym_Ref tree_Ref {name_Ref name_Ref}
+ *                  | 49 TREE len_Nat 52 EXPORTtree type_Ref sym_Ref tree_Ref {name_Ref name_Ref}
  *                  | 49 TREE len_Nat 11 DOCDEFtree type_Ref sym_Ref string_Ref tree_Ref
  *                  | 49 TREE len_Nat 12 TEMPLATEtree type_Ref sym_Ref numparents_Nat {tree_Ref} tree_Ref {tree_Ref}
  *                  | 49 TREE len_Nat 13 BLOCKtree type_Ref tree_Ref {tree_Ref}
@@ -103,7 +104,7 @@ object PickleFormat {
  *                  | 49 TREE len_Nat 44 TYPEBOUNDStree type_Ref tree_Ref tree_Ref
  *                  | 49 TREE len_Nat 45 EXISTENTIALTYPEtree type_Ref tree_Ref {tree_Ref}
  *                  | 50 MODIFIERS len_Nat flags_Long privateWithin_Ref
- *                  | 51 IMPLICITIMPORTsym len_Nat typeRef { name_Ref name_Ref  }
+ *                  | 51 EXPORTsym len_Nat typeRef { name_Ref name_Ref  }
  *   SymbolInfo     = name_Ref owner_Ref flags_LongNat [privateWithin_Ref] info_Ref
  *   NameInfo       = <character sequence of length len_Nat in Utf8 format>
  *   NumInfo        = <len_Nat-byte signed number in big endian format>
@@ -211,10 +212,11 @@ object PickleFormat {
     final val APPLIEDTYPEtree = 43
     final val TYPEBOUNDStree = 44
     final val EXISTENTIALTYPEtree = 45
+    final val EXPORTtree = 52
 
   final val MODIFIERS = 50
 
-  final val IMPLICITIMPORTsym = 51
+  final val EXPORTsym = 51
 
   final val firstSymTag = NONEsym
   final val lastFirstRangeSymTag = VALsym

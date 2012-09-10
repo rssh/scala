@@ -277,13 +277,20 @@ abstract class Pickler extends SubComponent {
           putTree(rhs)
           putTrees(params)
 
-        case Import(expr, selectors, isImplicit) =>
-          putMods(if (isImplicit) Modifiers(IMPLICIT) else Modifiers())
+        case Import(expr, selectors) =>
           putTree(expr)
           for (ImportSelector(from, _, to, _) <- selectors) {
             putEntry(from)
             putEntry(to)
           }
+
+        case Export(expr, selectors) =>
+          putTree(expr)
+          for (ImportSelector(from, _, to, _) <- selectors) {
+            putEntry(from)
+            putEntry(to)
+          }
+
 /*
         case DocDef(comment, definition) =>  should not be needed
           putConstant(Constant(comment))
@@ -716,17 +723,28 @@ abstract class Pickler extends SubComponent {
           writeRefs(params)
           TREE
 
-        case tree@Import(expr, selectors , isImplicit) =>
+        case tree@Import(expr, selectors) =>
           writeNat(IMPORTtree)
           writeRef(tree.tpe)
           writeRef(tree.symbol)
-          writeRef(if (isImplicit) Modifiers(IMPLICIT) else Modifiers())
           writeRef(expr)
           for (ImportSelector(from, _, to, _) <- selectors) {
             writeRef(from)
             writeRef(to)
           }
           TREE
+
+        case tree@Export(expr, selectors) =>
+          writeNat(EXPORTtree)
+          writeRef(tree.tpe)
+          writeRef(tree.symbol)
+          writeRef(expr)
+          for (ImportSelector(from, _, to, _) <- selectors) {
+            writeRef(from)
+            writeRef(to)
+          }
+          TREE
+
 
         case tree@DocDef(comment, definition) =>
           writeNat(DOCDEFtree)

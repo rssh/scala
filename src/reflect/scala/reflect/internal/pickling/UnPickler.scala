@@ -118,14 +118,14 @@ abstract class UnPickler /*extends reflect.generic.UnPickler*/ {
       val tag = bytes(index(i)).toInt
       (firstSymTag <= tag && tag <= lastFirstRangeSymTag &&
        (tag != CLASSsym || !isRefinementSymbolEntry(i))) ||
-      (tag == IMPLICITIMPORTsym)
+      (tag == EXPORTsym)
     }
 
     /** Does entry represent an (internal or external) symbol */
     protected def isSymbolRef(i: Int): Boolean = {
       val tag = bytes(index(i))
       (firstSymTag <= tag && tag <= lastFirstRangeExtSymTag) ||
-              (tag == IMPLICITIMPORTsym)
+              (tag == EXPORTsym)
     }
 
     /** Does entry represent a name? */
@@ -307,7 +307,7 @@ abstract class UnPickler /*extends reflect.generic.UnPickler*/ {
         case VALsym =>
           if (isModuleRoot) { assert(false); NoSymbol }
           else owner.newTermSymbol(name.toTermName, NoPosition, pflags)
-        case IMPLICITIMPORTsym =>
+        case EXPORTsym =>
           if (isModuleRoot) { assert(false); NoSymbol }
           else {
             val endSym = readNat();
@@ -318,7 +318,7 @@ abstract class UnPickler /*extends reflect.generic.UnPickler*/ {
               val n2 = readName();
               selects = (n1,n2)::selects
             }
-            owner.newImport(NoPosition, base, selects, true)
+            owner.newExport(NoPosition, base, selects)
           }
         case _ =>
           errorBadSignature("bad symbol tag: " + tag)
@@ -591,7 +591,6 @@ abstract class UnPickler /*extends reflect.generic.UnPickler*/ {
 
         case IMPORTtree =>
           setSym()
-          mods = readModifiersRef()
           val expr = readTreeRef()
           val selectors = until(end, () => {
             val from = readNameRef()
@@ -599,7 +598,18 @@ abstract class UnPickler /*extends reflect.generic.UnPickler*/ {
             ImportSelector(from, -1, to, -1)
           })
 
-          Import(expr, selectors, mods hasFlag IMPLICIT)
+          Import(expr, selectors)
+
+        case EXPORTtree =>
+          setSym()
+          val expr = readTreeRef()
+          val selectors = until(end, () => {
+            val from = readNameRef()
+            val to = readNameRef()
+            ImportSelector(from, -1, to, -1)
+          })
+
+          Export(expr, selectors)
 
         case TEMPLATEtree =>
           setSym()

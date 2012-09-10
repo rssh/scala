@@ -72,6 +72,7 @@ import util.ThreeValues._
     // only used during erasure of derived value classes.
 
   ImportType
+  ExportType
 
 */
 

@@ -178,17 +178,16 @@ trait MemberHandlers {
   }
 
   class ImportHandler(imp: Import) extends MemberHandler(imp) {
-    val Import(expr, selectors, isImplicit) = imp
+    val Import(expr, selectors) = imp
     def targetType: Type = intp.typeOfExpression("" + expr)
     override def isLegalTopLevel = true
 
     def createImportForName(name: Name): String = {
-      val implicitPrefix = if (isImplicit) "implicit " else ""
       selectors foreach {
-        case sel @ ImportSelector(old, _, `name`, _)  => return "%simport %s.{ %s }".format(implicitPrefix,expr, sel)
+        case sel @ ImportSelector(old, _, `name`, _)  => return "import %s.{ %s }".format(expr, sel)
         case _ => ()
       }
-      "%simport %s.%s".format(implicitPrefix,expr, name)
+      "import %s".format(expr, name)
     }
     // TODO: Need to track these specially to honor Predef masking attempts,
     // because they must be the leading imports in the code generated for each
@@ -227,4 +226,11 @@ trait MemberHandlers {
     def importString = imp.toString
     override def resultExtractionCode(req: Request) = codegenln(importString) + "\n"
   }
+
+  class ExportHandler(exp: Export) extends MemberHandler(exp) {
+    override def resultExtractionCode(req: Request) =
+                          codegenln(exp.toString) + "\n"
+  }
+
+
 }

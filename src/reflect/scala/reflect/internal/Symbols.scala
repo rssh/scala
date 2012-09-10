@@ -225,8 +225,11 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
     //final def newImport(pos: Position): TermSymbol =
     //  newTermSymbol(nme.IMPORT, pos)
 
-    final def newImport(pos: Position, base: Type, selectors:List[Pair[Name,Name]], isImplicit:Boolean): ImportSymbol =
-        new ImportSymbol(this, pos, base, selectors, isImplicit) 
+    final def newImport(pos: Position, base: Type, selectors:List[Pair[Name,Name]]): ImportSymbol =
+        new ImportSymbol(this, pos, base, selectors) 
+
+    final def newExport(pos: Position, base: Type, selectors:List[Pair[Name,Name]]): ExportSymbol =
+        new ExportSymbol(this, pos, base, selectors) 
 
     final def newModuleSymbol(name: TermName, pos: Position = NoPosition, newFlags: Long = 0L): ModuleSymbol =
       newTermSymbol(name, pos, newFlags).asInstanceOf[ModuleSymbol]
@@ -2521,15 +2524,14 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
   }
   implicit val MethodSymbolTag = ClassTag[MethodSymbol](classOf[MethodSymbol])
 
-  class ImportSymbol protected[Symbols] (initOwner: Symbol, initPos: Position,  
-                                         val base: Type, 
-                                         val selectors: List[Pair[Name,Name]], 
-                                         override val isImplicit: Boolean)
-     extends TermSymbol(initOwner, initPos, nme.IMPORT) with ImportSymbolApi 
+  trait ImportExportSymbol
   {
-    require( base ne null )
-    override def decodedName = baseName + "." + selectorsName +
-                                "(" + implicitString + ")"
+
+    self: TermSymbol =>
+
+    def base: Type
+
+    def selectors: List[Pair[Name,Name]]
 
     def baseName: String = if (base ne null) base.toString else "null" ;
 
@@ -2544,13 +2546,40 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
           } else "")
        } mkString "," 
 
-    def implicitString = if (isImplicit) "implicit" else ""
-
-    override def toString = (if (isImplicit) implicitString+" " else "")+"import "+baseName+"."+selectorsName
-
   }
 
+  class ImportSymbol protected[Symbols] (initOwner: Symbol, initPos: Position,  
+                                         val base: Type, 
+                                         val selectors: List[Pair[Name,Name]]
+                                         )
+     extends TermSymbol(initOwner, initPos, nme.IMPORT) with ImportSymbolApi 
+                                                        with ImportExportSymbol
+  {
+    require( base ne null )
+
+    override def decodedName = baseName + "." + selectorsName
+
+    override def toString = "import "+decodedName
+  }
+
+
   implicit val ImportSymbolTag = ClassTag[ImportSymbol](classOf[ImportSymbol])
+
+  class ExportSymbol protected[Symbols] (initOwner: Symbol, initPos: Position,  
+                                         val base: Type, 
+                                         val selectors: List[Pair[Name,Name]]
+                                         )
+     extends TermSymbol(initOwner, initPos, nme.EXPORT) with ExportSymbolApi 
+                                                        with ImportExportSymbol
+  {
+    require( base ne null )
+
+    override def decodedName = baseName + "." + selectorsName
+
+    override def toString = "=> import "+decodedName
+  }
+
+  implicit val ExportSymbolTag = ClassTag[ExportSymbol](classOf[ExportSymbol])
 
   class AliasTypeSymbol protected[Symbols] (initOwner: Symbol, initPos: Position, initName: TypeName)
   extends TypeSymbol(initOwner, initPos, initName) {

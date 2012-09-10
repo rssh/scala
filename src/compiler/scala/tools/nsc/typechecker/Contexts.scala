@@ -81,7 +81,8 @@ trait Contexts { self: Analyzer =>
     var sc = startContext
     while (sc != NoContext) {
       sc.tree match {
-        case Import(qual, _, _ ) => qual.tpe = singleType(qual.symbol.owner.thisType, qual.symbol)
+        case Import(qual, _ ) => qual.tpe = singleType(qual.symbol.owner.thisType, qual.symbol)
+        case Export(qual, _ ) => qual.tpe = singleType(qual.symbol.owner.thisType, qual.symbol)
         case _ =>
       }
       sc = sc.outer
@@ -296,18 +297,20 @@ trait Contexts { self: Analyzer =>
       c
     }
 
-    def makeNewImport(sym: Symbol, isImplicit: Boolean): Context =
-       makeNewImportTree(gen.mkWildcardImport(sym,isImplicit))
+    def makeNewImport(sym: Symbol): Context =
+       makeNewImportTree(gen.mkWildcardImport(sym))
 
     def makeNewImport(imp: Import, sym: ImportSymbol): Context =
     {
-     // we can't add generation of implicit imports here, because call if
-     // importInfo.qual.tpe give us 'cyclic reference error'  (we are before typing here)
-      if (imp.isImplicit) {
-        scope enter sym
-      }
-      makeNewImportTree(imp: Import)
+      makeNewImportTree(imp)
     }
+
+
+    def makeNewExport(exp: Export, sym: ImportSymbol): Context =
+    {
+      scope enter sym
+    }
+
 
     private def makeNewImportTree(imp: Import): Context =
     {
@@ -718,6 +721,7 @@ trait Contexts { self: Analyzer =>
     /** The prefix expression */
     def qual: Tree = tree.symbol.info match {
       case ImportType(expr) => expr
+      case ExportType(expr) => expr
       case ErrorType => tree setType NoType // fix for #2870
       case _ => throw new FatalError("symbol " + tree.symbol + " has bad type: " + tree.symbol.info) //debug
     }
@@ -774,4 +778,9 @@ trait Contexts { self: Analyzer =>
   case class ImportType(expr: Tree) extends Type {
     override def safeToString = "ImportType("+expr+")"
   }
+
+  case class ExportType(expr: Tree) extends Type {
+    override def safeToString = "ExportType("+expr+")"
+  }
+
 }

@@ -239,27 +239,13 @@ trait Printers extends api.Printers { self: SymbolTable =>
         case LabelDef(name, params, rhs) =>
           print(symName(tree, name)); printLabelParams(params); printBlock(rhs)
 
-        case Import(expr, selectors, isImplicit) =>
-          // Is this selector remapping a name (i.e, {name1 => name2})
-          def isNotRemap(s: ImportSelector) : Boolean = (s.name == nme.WILDCARD || s.name == s.rename)
-          def selectorToString(s: ImportSelector): String = {
-            val from = quotedName(s.name)
-            if (isNotRemap(s)) from
-            else from + "=>" + quotedName(s.rename)
-          }
-          if (isImplicit) {
-             print("implicit ")
-          }
+        case Import(expr, selectors) =>
           print("import ", backquotedPath(expr), ".")
-          selectors match {
-            case List(s) =>
-              // If there is just one selector and it is not remapping a name, no braces are needed
-              if (isNotRemap(s)) print(selectorToString(s))
-              else print("{", selectorToString(s), "}")
-              // If there is more than one selector braces are always needed
-            case many =>
-              print(many.map(selectorToString).mkString("{", ", ", "}"))
-          }
+          printImportSelectors(selectors)
+
+       case Export(expr, selectors) =>
+          print("=> import ", backquotedPath(expr), ".")
+          printImportSelectors(selectors)
 
        case Template(parents, self, body) =>
           val currentOwner1 = currentOwner
@@ -480,6 +466,26 @@ trait Printers extends api.Printers { self: SymbolTable =>
   def newRawTreePrinter(writer: PrintWriter): RawTreePrinter = new RawTreePrinter(writer)
   def newRawTreePrinter(stream: OutputStream): RawTreePrinter = newRawTreePrinter(new PrintWriter(stream))
   def newRawTreePrinter(): RawTreePrinter = newRawTreePrinter(new PrintWriter(ConsoleWriter))
+
+  def printImportSelectors(selectors: List[ImportSelector]) =
+  {
+     // Is this selector remapping a name (i.e, {name1 => name2})
+     def isNotRemap(s: ImportSelector) : Boolean = (s.name == nme.WILDCARD || s.name == s.rename)
+     def selectorToString(s: ImportSelector): String = {
+           val from = quotedName(s.name)
+            if (isNotRemap(s)) from
+            else from + "=>" + quotedName(s.rename)
+     }
+     selectors match {
+            case List(s) =>
+              // If there is just one selector and it is not remapping a name, no braces are needed
+              if (isNotRemap(s)) print(selectorToString(s))
+              else print("{", selectorToString(s), "}")
+              // If there is more than one selector braces are always needed
+            case many =>
+              print(many.map(selectorToString).mkString("{", ", ", "}"))
+     }
+  }
 
   // provides footnotes for types and mirrors
   import scala.collection.mutable.{Map, WeakHashMap, SortedSet}

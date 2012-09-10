@@ -2650,7 +2650,7 @@ trait Typers extends Modes with Adaptations with Tags {
           OnlyDeclarationsError(stat)
         else
           stat match {
-            case imp @ Import(_, _,_) =>
+            case imp @ Import(_, _) =>
               imp.symbol.initialize
               if (!imp.symbol.isError) {
                 imp.symbol match {
@@ -2658,6 +2658,15 @@ trait Typers extends Modes with Adaptations with Tags {
                        context = context.makeNewImport(imp, isym)
                 }
                 typedImport(imp)
+              } else EmptyTree
+            //  TODO: remove duplication
+            case exp @ Export(_, _) =>
+              exp.symbol.initialize
+              if (!exp.symbol.isError) {
+                exp.symbol match {
+                   case esym:ExportSymbol =>
+                       context = context.makeNewImport(imp, esym)
+                }
               } else EmptyTree
             case _ =>
               if (localTarget && !includesTargetPos(stat)) {

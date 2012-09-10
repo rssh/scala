@@ -7,11 +7,12 @@ package x {
 }
 
 package object q {
-  implicit import x._
+  => import x._
   class Y {
-   print("q.Y")
+    println("q.Y")
   }
 }
+
 
 object A
 {

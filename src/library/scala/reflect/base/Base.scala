@@ -83,8 +83,12 @@ class Base extends Universe { self =>
 
   class ImportSymbol(owner: Symbol, name: TermName, flags: FlagSet)
        extends TermSymbol(owner, name, flags) with ImportSymbolBase
-
   implicit val ImportSymbolTag = ClassTag[ImportSymbol](classOf[ImportSymbol])
+
+  class ExportSymbol(owner: Symbol, name: TermName, flags: FlagSet)
+       extends TermSymbol(owner, name, flags) with ExportSymbolBase
+  implicit val ExportSymbolTag = ClassTag[ExportSymbol](classOf[ImportSymbol])
+
 
   class FreeTermSymbol(owner: Symbol, name: TermName, flags: FlagSet)
       extends TermSymbol(owner, name, flags) with FreeTermSymbolBase
@@ -543,9 +547,13 @@ class Base extends Universe { self =>
   case class ImportSelector(name: Name, namePos: Int, rename: Name, renamePos: Int)
   object ImportSelector extends ImportSelectorExtractor
 
-  case class Import(expr: Tree, selectors: List[ImportSelector], isImplicit: Boolean)
+  case class Import(expr: Tree, selectors: List[ImportSelector])
        extends SymTree
   object Import extends ImportExtractor
+
+  case class Export(expr: Tree, selectors: List[ImportSelector])
+       extends SymTree
+  object Export extends ExportExtractor
 
   case class Template(parents: List[Tree], self: ValDef, body: List[Tree])
        extends SymTree
@@ -712,6 +720,7 @@ class Base extends Universe { self =>
   implicit val LabelDefTag = ClassTag[LabelDef](classOf[LabelDef])
   implicit val ImportSelectorTag = ClassTag[ImportSelector](classOf[ImportSelector])
   implicit val ImportTag = ClassTag[Import](classOf[Import])
+  implicit val ExportTag = ClassTag[Export](classOf[Export])
   implicit val TemplateTag = ClassTag[Template](classOf[Template])
   implicit val BlockTag = ClassTag[Block](classOf[Block])
   implicit val CaseDefTag = ClassTag[CaseDef](classOf[CaseDef])

@@ -407,12 +407,20 @@ trait Trees { self: Universe =>
     def unapply(importSelector: ImportSelector): Option[(Name, Int, Name, Int)]
   }
 
+  /* base class for import and export */
+  type ImportExport >: Null <: SymTree
+
+  abstract class ImportExportExtractor {
+    def apply(expr: Tree, selectors: List[ImportSelector]): ImportExport
+    def unapply(ie: ImportExport): Option[(Tree,List[ImportSelector])]
+  }
+
   /** Import clause
    *
    *  @param expr
    *  @param selectors
    */
-  type Import >: Null <: SymTree
+  type Import >: Null <: ImportExport
 
   /** A tag that preserves the identity of the `Import` abstract type from erasure.
    *  Can be used for pattern matching, instance tests, serialization and likes.
@@ -422,10 +430,10 @@ trait Trees { self: Universe =>
   /** The constructor/deconstructor for `Import` instances. */
   val Import: ImportExtractor
 
-  /** An extractor class to create and pattern match with syntax `Import(expr, selectors, isImplicit)`.
+  /** An extractor class to create and pattern match with syntax `Import(expr, selectors)`.
    *  This AST node corresponds to the following Scala code:
    *
-   *    [implicit] import expr.{selectors}
+   *    import expr.{selectors}
    *
    *  Selectors are a list of pairs of names (from, to). // [Eugene++] obviously, they no longer are. please, document!
    *  The last (and maybe only name) may be a nme.WILDCARD. For instance:
@@ -440,9 +448,36 @@ trait Trees { self: Universe =>
    *  It's used primarily as a marker to check that the import has been typechecked.
    */
   abstract class ImportExtractor {
-    def apply(expr: Tree, selectors: List[ImportSelector], isImplicit:Boolean): Import
-    def unapply(import_ : Import): Option[(Tree, List[ImportSelector], Boolean)]
+    def apply(expr: Tree, selectors: List[ImportSelector]): Import
+    def unapply(import_ : Import): Option[(Tree, List[ImportSelector])]
   }
+
+  /** Export clause
+   *
+   *  @param expr
+   *  @param selectors
+   */
+  type Export >: Null <: ImportExport
+
+  /** A tag that preserves the identity of the `Export` abstract type from erasure.
+   *  Can be used for pattern matching, instance tests, serialization and likes.
+   */
+  implicit val ExportTag: ClassTag[Export]
+
+  /** An extractor class to create and pattern match with syntax `Export(expr, selectors)`.
+   *  This AST node corresponds to the following Scala code:
+   *
+   *    => import expr.{selectors}
+   *
+   *  The symbol of an `Export` is an export symbol @see Symbol.newImport.
+   *  It's used primarily as a marker to check that the export has been typechecked.
+   */
+  abstract class ExportExtractor {
+    def apply(expr: Tree, selectors: List[ImportSelector]): Export
+    def unapply(export : Export): Option[(Tree, List[ImportSelector])]
+  }
+
+
 
   /** Instantiation template of a class or trait
    *

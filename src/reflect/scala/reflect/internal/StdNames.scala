@@ -102,6 +102,7 @@ trait StdNames {
     val EMPTY_PACKAGE_NAME: NameType = "<empty>"
     val IMPL_CLASS_SUFFIX            = "$class"
     val IMPORT: NameType             = "<import>"
+    val EXPORT: NameType             = "<export>"
     val MODULE_SUFFIX_NAME: NameType = MODULE_SUFFIX_STRING
     val MODULE_VAR_SUFFIX: NameType  = "$module"
     val NAME_JOIN_NAME: NameType     = NAME_JOIN_STRING
@@ -585,6 +586,7 @@ trait StdNames {
     val Flag : NameType                = "Flag"
     val Ident: NameType                = "Ident"
     val Import: NameType               = "Import"
+    val Export: NameType               = "Export"
     val Literal: NameType              = "Literal"
     val LiteralAnnotArg: NameType      = "LiteralAnnotArg"
     val Modifiers: NameType            = "Modifiers"

@@ -56,9 +56,10 @@ trait GenTrees {
         reifyBoundType(tree)
       case Literal(const @ Constant(_)) =>
         mirrorCall(nme.Literal, reifyProduct(const))
-      case Import(expr, selectors, isImplicit) =>
-        // TODO: check - may be set isImplicit in mirrot call
+      case Import(expr, selectors) =>
         mirrorCall(nme.Import, reify(expr), mkList(selectors map reifyProduct))
+      case Export(expr, selectors) =>
+        mirrorCall(nme.Export, reify(expr), mkList(selectors map reifyProduct))
       case _ =>
         reifyProduct(tree)
     }

@@ -74,8 +74,13 @@ trait Importers { self: SymbolTable =>
           case x: from.ImportSymbol =>
             linkReferenced(myowner.newImport(x.pos, 
                                             importType(x.base), 
-                                            x.selectors map (x => (importName(x._1), importName(x._2) ) ), 
-                                            x.isImplicit),x,importSymbol)
+                                            x.selectors map (x => (importName(x._1), importName(x._2) ) )
+                                            ),x,importSymbol)
+          case x: from.ExportSymbol =>
+            linkReferenced(myowner.newExport(x.pos, 
+                                            importType(x.base), 
+                                            x.selectors map (x => (importName(x._1), importName(x._2) ) )
+                                            ),x,importSymbol)
           case x: from.FreeTermSymbol =>
             newFreeTermSymbol(importName(x.name).toTermName, importType(x.info), x.value, x.flags, x.origin)
           case x: from.FreeTypeSymbol =>
@@ -315,8 +320,13 @@ trait Importers { self: SymbolTable =>
 
     def importImportSymbol(sym: from.ImportSymbol): ImportSymbol =
       importSymbol(sym.owner).newImport(sym.pos, importType(sym.base), 
-                  sym.selectors map (x => (importName(x._1),importName(x._2))),
-                  sym.isImplicit)
+                  sym.selectors map (x => (importName(x._1),importName(x._2)))
+                  )
+
+    def importExportSymbol(sym: from.ExportSymbol): ExportSymbol =
+      importSymbol(sym.owner).newExport(sym.pos, importType(sym.base), 
+                  sym.selectors map (x => (importName(x._1),importName(x._2)))
+                  )
 
     def importModifiers(mods: from.Modifiers): Modifiers =
       new Modifiers(mods.flags, importName(mods.privateWithin), mods.annotations map importTree)
@@ -342,8 +352,10 @@ trait Importers { self: SymbolTable =>
           new TypeDef(importModifiers(mods), importName(name).toTypeName, tparams map importTypeDef, importTree(rhs))
         case from.LabelDef(name, params, rhs) =>
           new LabelDef(importName(name).toTermName, params map importIdent, importTree(rhs))
-        case from.Import(expr, selectors, isImplicit) =>
-          new Import(importTree(expr), selectors map importImportSelector, isImplicit)
+        case from.Import(expr, selectors) =>
+          new Import(importTree(expr), selectors map importImportSelector)
+        case from.Export(expr, selectors) =>
+          new Export(importTree(expr), selectors map importImportSelector)
         case from.Template(parents, self, body) =>
           new Template(parents map importTree, importValDef(self), body map importTree)
         case from.Block(stats, expr) =>
