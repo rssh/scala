@@ -67,7 +67,7 @@ trait Contexts { self: Analyzer =>
     import definitions._
     var sc = startContext
     for (sym <- rootImports(unit)) {
-      sc = sc.makeNewImport(sym, false)
+      sc = sc.makeNewImport(sym)
       sc.depth += 1
     }
     val c = sc.make(unit, tree, sc.owner, sc.scope, sc.imports)
@@ -81,8 +81,7 @@ trait Contexts { self: Analyzer =>
     var sc = startContext
     while (sc != NoContext) {
       sc.tree match {
-        case Import(qual, _ ) => qual.tpe = singleType(qual.symbol.owner.thisType, qual.symbol)
-        case Export(qual, _ ) => qual.tpe = singleType(qual.symbol.owner.thisType, qual.symbol)
+        case ImportExport(qual, _ ) => qual.tpe = singleType(qual.symbol.owner.thisType, qual.symbol)
         case _ =>
       }
       sc = sc.outer
@@ -118,7 +117,7 @@ trait Contexts { self: Analyzer =>
     private var _undetparams: List[Symbol] = List() // Undetermined type parameters,
                                                     // not inherited to child contexts
     var depth: Int = 0
-    var imports: List[ImportInfo] = List()   // currently visible imports
+    var imports: List[ImportExportInfo] = List()   // currently visible imports
     var openImplicits: List[(Type,Tree)] = List()   // types for which implicit arguments
                                              // are currently searched
     // for a named application block (Tree) the corresponding NamedApplyInfo
@@ -243,7 +242,7 @@ trait Contexts { self: Analyzer =>
     }
 
     def make(unit: CompilationUnit, tree: Tree, owner: Symbol,
-             scope: Scope, imports: List[ImportInfo]): Context = {
+             scope: Scope, imports: List[ImportExportInfo]): Context = {
       val c   = new Context
       c.unit  = unit
       c.tree  = tree
@@ -298,23 +297,21 @@ trait Contexts { self: Analyzer =>
     }
 
     def makeNewImport(sym: Symbol): Context =
-       makeNewImportTree(gen.mkWildcardImport(sym))
+       makeNewImportExportTree(gen.mkWildcardImport(sym))
 
-    def makeNewImport(imp: Import, sym: ImportSymbol): Context =
+    def makeNewImportExport(imp: ImportExport, sym: ImportExportSymbol): Context =
     {
-      makeNewImportTree(imp)
+      if (sym.isExport) {
+         scope enter sym
+      }
+      makeNewImportExportTree(imp)
     }
 
 
-    def makeNewExport(exp: Export, sym: ImportSymbol): Context =
-    {
-      scope enter sym
-    }
 
-
-    private def makeNewImportTree(imp: Import): Context =
+    private def makeNewImportExportTree(imp: ImportExport): Context =
     {
-      make(unit, imp, owner, scope, new ImportInfo(imp,depth) :: imports)
+      make(unit, imp, owner, scope, new ImportExportInfo(imp,depth) :: imports)
     }
 
 
@@ -637,7 +634,7 @@ trait Contexts { self: Analyzer =>
       for (sym <- syms.toList if isQualifyingImplicit(sym.name, sym, pre, imported)) yield
         new ImplicitInfo(sym.name, pre, sym)
 
-    private def collectImplicitInImports(imp: ImportInfo): List[ImplicitInfo] = {
+    private def collectImplicitInImports(imp: ImportExportInfo): List[ImplicitInfo] = {
       val pre = imp.qual.tpe
       def collect(sels: List[ImportSelector]): List[ImplicitInfo] = sels match {
         case List() =>
@@ -716,12 +713,11 @@ trait Contexts { self: Analyzer =>
     }
   } //class Context
 
-  class ImportInfo(val tree: Import, val depth: Int) {
+  class ImportExportInfo(val tree: ImportExport, val depth: Int) {
 
     /** The prefix expression */
     def qual: Tree = tree.symbol.info match {
-      case ImportType(expr) => expr
-      case ExportType(expr) => expr
+      case ImportExportType(expr) => expr
       case ErrorType => tree setType NoType // fix for #2870
       case _ => throw new FatalError("symbol " + tree.symbol + " has bad type: " + tree.symbol.info) //debug
     }
@@ -775,12 +771,10 @@ trait Contexts { self: Analyzer =>
     override def toString() = tree.toString()
   }
 
-  case class ImportType(expr: Tree) extends Type {
-    override def safeToString = "ImportType("+expr+")"
+  case class ImportExportType(expr:Tree) extends Type
+  {
+    override def safeToString = "ImportExportType("+expr+")"
   }
 
-  case class ExportType(expr: Tree) extends Type {
-    override def safeToString = "ExportType("+expr+")"
-  }
 
 }

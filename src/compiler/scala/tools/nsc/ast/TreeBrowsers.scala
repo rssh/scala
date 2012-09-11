@@ -652,8 +652,8 @@ abstract class TreeBrowsers {
                 Document.group("(" :/: symsToDocument(tparams) :/: "), ") :/:
                 toDocument(result) :: ")"))
 
-      case global.analyzer.ImportType(expr) =>
-        "ImportType(" + expr.toString + ")"
+      case global.analyzer.ImportExportType(expr) =>
+        "ImportExportType(" + expr.toString + ")"
 
 
       case SuperType(thistpe, supertpe) =>

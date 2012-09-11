@@ -296,23 +296,27 @@ trait Trees extends api.Trees { self: SymbolTable =>
     val wildList = List(wild)
   }
 
+  sealed trait ImportExport extends SymTree with ImportExportApi
+
+  object ImportExport extends ImportExportExtractor
+  {
+
+     def unapply(x:ImportExport):Option[(Tree,List[ImportSelector])] =
+       x match  {
+         case Import(expr,selectors) => Some((expr,selectors))
+         case Export(expr,selectors) => Some((expr,selectors))
+       }
+
+
+  }
+
   case class Import(expr: Tree, selectors: List[ImportSelector])
-       extends SymTree with ImportApi
+       extends ImportExport with ImportApi
   object Import extends ImportExtractor
 
   case class Export(expr: Tree, selectors: List[ImportSelector])
-       extends SymTree with ExportApi
+       extends ImportExport with ExportApi
   object Export extends ExportExtractor
-
-  object ImportOrExport
-  {
-     def unapply(x:Tree):Option[(Boolean,Tree,List[ImportSelector])] =
-          x match {
-            case Import(expr,selectors) => Some((false,expr,selectors))
-            case Export(expr,selectors) => Some((true,expr,selectors))
-            case _                      => None
-          }
-  }
 
   case class Template(parents: List[Tree], self: ValDef, body: List[Tree])
        extends SymTree with TemplateApi
@@ -529,6 +533,11 @@ trait Trees extends api.Trees { self: SymbolTable =>
       new Import(expr, selectors).copyAttrs(tree)
     def Export(tree: Tree, expr: Tree, selectors: List[ImportSelector]) =
       new Export(expr, selectors).copyAttrs(tree)
+    def ImportExport(tree: Tree, expr: Tree, selectors: List[ImportSelector]) =
+      tree match {
+        case Import(expr,selectors) => Import(tree,expr,selectors)
+        case Export(expr,selectors) => Export(tree,expr,selectors)
+      }
     def Template(tree: Tree, parents: List[Tree], self: ValDef, body: List[Tree]) =
       new Template(parents, self, body).copyAttrs(tree)
     def Block(tree: Tree, stats: List[Tree], expr: Tree) =

@@ -2624,8 +2624,8 @@ trait Typers extends Modes with Adaptations with Tags {
       }
     }
 
-    def typedImport(imp : Import) : Import = (transformed remove imp) match {
-      case Some(imp1: Import) => imp1
+    def typedImportExport(imp : ImportExport) : ImportExport = (transformed remove imp) match {
+      case Some(imp1: ImportExport) => imp1
       case _                  => log("unhandled import: "+imp+" in "+unit); imp
     }
     private def isWarnablePureExpression(tree: Tree) = tree match {
@@ -2650,23 +2650,14 @@ trait Typers extends Modes with Adaptations with Tags {
           OnlyDeclarationsError(stat)
         else
           stat match {
-            case imp @ Import(_, _) =>
-              imp.symbol.initialize
-              if (!imp.symbol.isError) {
-                imp.symbol match {
-                   case isym:ImportSymbol =>
-                       context = context.makeNewImport(imp, isym)
+            case tree @ ImportExport(_, _) =>
+              tree.symbol.initialize
+              if (!tree.symbol.isError) {
+                tree.symbol match {
+                  case iesym: ImportExportSymbol =>
+                       context = context.makeNewImportExport(tree, iesym)
                 }
-                typedImport(imp)
-              } else EmptyTree
-            //  TODO: remove duplication
-            case exp @ Export(_, _) =>
-              exp.symbol.initialize
-              if (!exp.symbol.isError) {
-                exp.symbol match {
-                   case esym:ExportSymbol =>
-                       context = context.makeNewImport(imp, esym)
-                }
+                typedImportExport(tree)
               } else EmptyTree
             case _ =>
               if (localTarget && !includesTargetPos(stat)) {

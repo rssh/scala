@@ -2524,16 +2524,16 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
   }
   implicit val MethodSymbolTag = ClassTag[MethodSymbol](classOf[MethodSymbol])
 
-  trait ImportExportSymbol
+  abstract class ImportExportSymbol(initOwner: Symbol, initPos: Position,  
+                                    val base: Type, 
+                                    val selectors: List[Pair[Name,Name]],
+                                    override val name: TermName)
+         extends TermSymbol(initOwner, initPos, name) with ImportExportSymbolApi 
   {
 
-    self: TermSymbol =>
-
-    def base: Type
-
-    def selectors: List[Pair[Name,Name]]
-
     def baseName: String = if (base ne null) base.toString else "null" ;
+
+    override def decodedName = baseName + "." + selectorsName
 
     def selectorsName: String = 
       if (selectors eq null) 
@@ -2546,37 +2546,40 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
           } else "")
        } mkString "," 
 
+     def isImport: Boolean
+     def isExport: Boolean
+
   }
 
   class ImportSymbol protected[Symbols] (initOwner: Symbol, initPos: Position,  
-                                         val base: Type, 
-                                         val selectors: List[Pair[Name,Name]]
+                                         base: Type, 
+                                         selectors: List[Pair[Name,Name]]
                                          )
-     extends TermSymbol(initOwner, initPos, nme.IMPORT) with ImportSymbolApi 
-                                                        with ImportExportSymbol
+     extends ImportExportSymbol(initOwner, initPos, base, selectors, nme.IMPORT) with ImportSymbolApi 
   {
     require( base ne null )
 
-    override def decodedName = baseName + "." + selectorsName
-
     override def toString = "import "+decodedName
+
+    override def isExport: Boolean = false
+
   }
 
 
   implicit val ImportSymbolTag = ClassTag[ImportSymbol](classOf[ImportSymbol])
 
   class ExportSymbol protected[Symbols] (initOwner: Symbol, initPos: Position,  
-                                         val base: Type, 
-                                         val selectors: List[Pair[Name,Name]]
+                                         base: Type, 
+                                         selectors: List[Pair[Name,Name]]
                                          )
-     extends TermSymbol(initOwner, initPos, nme.EXPORT) with ExportSymbolApi 
-                                                        with ImportExportSymbol
+     extends ImportExportSymbol(initOwner, initPos, base, selectors, nme.EXPORT) with ExportSymbolApi 
   {
     require( base ne null )
 
-    override def decodedName = baseName + "." + selectorsName
-
     override def toString = "=> import "+decodedName
+
+    override def isImport: Boolean = false
+
   }
 
   implicit val ExportSymbolTag = ClassTag[ExportSymbol](classOf[ExportSymbol])

@@ -827,8 +827,7 @@ class Global(settings: Settings, _reporter: Reporter, projectName: String = "")
         case _ => tree.tpe
    }
    tree.symbol.info match {
-     case analyzer.ImportType(expr) => stabilizedChild(expr)
-     case analyzer.ExportType(expr) => stabilizedChild(expr)
+     case analyzer.ImportExportType(expr) => stabilizedChild(expr)
      case _ => tree.tpe
    }
   }
@@ -970,7 +969,7 @@ class Global(settings: Settings, _reporter: Reporter, projectName: String = "")
     val pre = stabilizedType(tree)
 
     val ownerTpe = tree.tpe match {
-      case analyzer.ImportType(expr) => expr.tpe
+      case analyzer.ImportExportType(expr) => expr.tpe
       case null => pre
       case MethodType(List(), rtpe) => rtpe
       case _ => tree.tpe

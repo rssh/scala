@@ -43,7 +43,7 @@ abstract class TreeGen extends reflect.internal.TreeGen with TreeDSL {
                   List((nme.WILDCARD,null))
                  )
           setFlag SYNTHETIC
-          setInfo analyzer.ImportType(qual)
+          setInfo analyzer.ImportExportType(qual)
     )
     val importTree = (
       Import(qual, ImportSelector.wildList)

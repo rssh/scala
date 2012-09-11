@@ -81,12 +81,15 @@ class Base extends Universe { self =>
       extends ClassSymbol(owner, name, flags) { override def isModuleClass = true }
   implicit val ClassSymbolTag = ClassTag[ClassSymbol](classOf[ClassSymbol])
 
+  class ImportExportSymbol(owner: Symbol, name: TermName, flags: FlagSet)
+       extends TermSymbol(owner, name, flags) with ImportExportSymbolBase
+
   class ImportSymbol(owner: Symbol, name: TermName, flags: FlagSet)
-       extends TermSymbol(owner, name, flags) with ImportSymbolBase
+       extends ImportExportSymbol(owner, name, flags) with ImportSymbolBase
   implicit val ImportSymbolTag = ClassTag[ImportSymbol](classOf[ImportSymbol])
 
   class ExportSymbol(owner: Symbol, name: TermName, flags: FlagSet)
-       extends TermSymbol(owner, name, flags) with ExportSymbolBase
+       extends ImportExportSymbol(owner, name, flags) with ExportSymbolBase
   implicit val ExportSymbolTag = ClassTag[ExportSymbol](classOf[ImportSymbol])
 
 
@@ -547,13 +550,41 @@ class Base extends Universe { self =>
   case class ImportSelector(name: Name, namePos: Int, rename: Name, renamePos: Int)
   object ImportSelector extends ImportSelectorExtractor
 
+  trait ImportExport extends SymTree
+  {
+    def expr: Tree
+    def selectors: List[ImportSelector]
+
+    def isImport: Boolean
+    def isExport: Boolean
+  }
+  object ImportExport extends ImportExportExtractor
+  {
+
+    def unapply(ie: ImportExport): Option[(Tree, List[ImportSelector])] =
+     ie match {
+        case Import(expr,selectors) => Some((expr,selectors))
+        case Export(expr,selectors) => Some((expr,selectors))
+     }
+
+  }
+
   case class Import(expr: Tree, selectors: List[ImportSelector])
-       extends SymTree
+       extends ImportExport
+  {
+    def isImport = true
+    def isExport = false
+  }
   object Import extends ImportExtractor
 
   case class Export(expr: Tree, selectors: List[ImportSelector])
-       extends SymTree
+       extends ImportExport
+  {
+    def isImport = false
+    def isExport = true
+  }
   object Export extends ExportExtractor
+ 
 
   case class Template(parents: List[Tree], self: ValDef, body: List[Tree])
        extends SymTree

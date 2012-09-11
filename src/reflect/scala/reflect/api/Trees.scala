@@ -253,20 +253,30 @@ trait Trees extends base.Trees { self: Universe =>
     val renamePos: Int
   }
 
-  override type Import >: Null <: SymTree with ImportApi
+  override type ImportExport >: Null <: SymTree with ImportExportApi
 
-  /** The API that all imports support */
-  trait ImportApi extends SymTreeApi { this: Import =>
+  /** The API that all imports/exports support */
+  trait ImportExportApi extends SymTreeApi { this: ImportExport =>
     val expr: Tree
     val selectors: List[ImportSelector]
+    def isImport: Boolean
+    def isExport: Boolean
   }
 
-  override type Export >: Null <: SymTree with ExportApi
+  override type Import >: Null <: ImportExport with ImportApi
+
+  /** The API that all imports support */
+  trait ImportApi extends ImportExportApi { this: Import =>
+    def isImport = true
+    def isExport = false
+  }
+
+  override type Export >: Null <: ImportExport with ExportApi
 
   /** The API that all exports support */
-  trait ExportApi extends SymTreeApi { this: Export =>
-    val expr: Tree
-    val selectors: List[ImportSelector]
+  trait ExportApi extends ImportExportApi { this: Export =>
+    def isImport = false
+    def isExport = true
   }
 
   override type Template >: Null <: SymTree with TemplateApi

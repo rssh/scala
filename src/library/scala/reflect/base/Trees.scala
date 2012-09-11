@@ -411,7 +411,6 @@ trait Trees { self: Universe =>
   type ImportExport >: Null <: SymTree
 
   abstract class ImportExportExtractor {
-    def apply(expr: Tree, selectors: List[ImportSelector]): ImportExport
     def unapply(ie: ImportExport): Option[(Tree,List[ImportSelector])]
   }
 

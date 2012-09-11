@@ -55,15 +55,17 @@ trait Symbols { self: Universe =>
    */
   implicit val ClassSymbolTag: ClassTag[ClassSymbol]
 
+  type ImportExportSymbol >: Null <: TermSymbol with ImportExportSymbolBase
+
   /** The abstract type of import definitions */
-  type ImportSymbol >: Null <: TermSymbol with ImportSymbolBase
+  type ImportSymbol >: Null <: ImportExportSymbol with ImportSymbolBase
 
   /** A tag that preserves the identity of the `ImportSymbol` abstract type from erasure. */
   implicit val ImportSymbolTag: ClassTag[ImportSymbol]
   
 
   /** The abstract type of export definitions */
-  type ExportSymbol >: Null <: TermSymbol with ExportSymbolBase
+  type ExportSymbol >: Null <: ImportExportSymbol with ExportSymbolBase
 
   implicit val ExportSymbolTag: ClassTag[ExportSymbol]
 
@@ -289,8 +291,14 @@ trait Symbols { self: Universe =>
     final override def asModule = this
   }
 
+  /** The base API that all import/export symbols support */
+  trait ImportExportSymbolBase extends TermSymbolBase { this: ImportExportSymbol =>
+     def isImport: Boolean
+     def isExport: Boolean
+  }
+
   /** The base API that all import symbols support */
-  trait ImportSymbolBase extends TermSymbolBase { this: ImportSymbol =>
+  trait ImportSymbolBase extends ImportExportSymbolBase { this: ImportSymbol =>
     final override def isImport: Boolean = true
     final override def asImport = this
   }

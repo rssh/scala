@@ -9,8 +9,9 @@ trait Symbols extends base.Symbols { self: Universe =>
   override type MethodSymbol >: Null <: TermSymbol with MethodSymbolApi
   override type ModuleSymbol >: Null <: TermSymbol with ModuleSymbolApi
   override type ClassSymbol >: Null <: TypeSymbol with ClassSymbolApi
-  override type ImportSymbol >: Null <: TermSymbol with ImportSymbolApi
-  override type ExportSymbol >: Null <: TermSymbol with ExportSymbolApi
+  override type ImportExportSymbol >: Null <: TermSymbol with ImportExportSymbolApi
+  override type ImportSymbol >: Null <: ImportExportSymbol with ImportSymbolApi
+  override type ExportSymbol >: Null <: ImportExportSymbol with ExportSymbolApi
   override type FreeTermSymbol >: Null <: TermSymbol with FreeTermSymbolApi
   override type FreeTypeSymbol >: Null <: TypeSymbol with FreeTypeSymbolApi
 
@@ -392,19 +393,18 @@ trait Symbols extends base.Symbols { self: Universe =>
     def typeParams: List[Symbol]
   }
 
-  trait ImportSymbolApi extends TermSymbolApi with ImportSymbolBase { this: ImportSymbol =>
-
-    /* type */
+  trait ImportExportSymbolApi extends TermSymbolApi with ImportExportSymbolBase { 
+    this: ImportExportSymbol =>
     def base: Type
     def selectors: List[Pair[Name,Name]]
-
+    def isImport: Boolean
+    def isExport: Boolean
   }
 
-  trait ExportSymbolApi extends TermSymbolApi with ExportSymbolBase { this: ExportSymbol =>
+  trait ImportSymbolApi extends ImportExportSymbolApi with ImportSymbolBase { this: ImportSymbol =>
+  }
 
-    def base: Type
-    def selectors: List[Pair[Name,Name]]
-
+  trait ExportSymbolApi extends ImportExportSymbolApi with ExportSymbolBase { this: ExportSymbol =>
   }
 
 
