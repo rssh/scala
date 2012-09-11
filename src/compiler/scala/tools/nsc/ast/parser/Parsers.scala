@@ -2303,12 +2303,12 @@ self =>
 
 
     /** {{{
-     *  Import  ::= [implicit] import ImportExpr {`,' ImportExpr}
+     *  Import  ::= [Annotation] import ImportExpr {`,' ImportExpr}
      *  }}}
      */
-    def importClause(isExported: Boolean): List[Tree] = {
+    def importClause(isExported: Boolean, annotations:List[Tree]): List[Tree] = {
       val offset = accept(IMPORT)
-      commaSeparated(importExpr(isExported)) match {
+      commaSeparated(importExpr(isExported, annotations)) match {
         case Nil => Nil
         case t :: rest =>
           // The first import should start at the position of the keyword.
@@ -2321,7 +2321,7 @@ self =>
      *  ImportExpr ::= StableId `.' (Id | `_' | ImportSelectors)
      *  }}}
      */
-    def importExpr(isImplicit:Boolean): Tree = {
+    def importExpr(isExported:Boolean, annotations:List[Tree]): Tree = {
       val start = in.offset
       def thisDotted(name: TypeName) = {
         in.nextToken()
@@ -2352,7 +2352,8 @@ self =>
             else List(makeImportSelector(name, nameOffset))
         }
         // reaching here means we're done walking.
-        atPos(start)(Import(expr, selectors, isImplicit))
+	atPos(start)(Import(expr, selectors, isExported))
+        //atPos(start)(Import(expr, selectors, isImplicit, annotations))
       }
 
       loop(in.token match {
@@ -2435,9 +2436,13 @@ self =>
 
     private def caseAwareTokenOffset = if (in.token == CASECLASS || in.token == CASEOBJECT) in.prev.offset else in.offset
 
-    def nonLocalDefOrDcl: List[Tree] = {
+    def nonLocalDefOrDclOrAnnotatedImport: List[Tree] = {
       val annots = annotations(skipNewLines = true)
-      defOrDcl(caseAwareTokenOffset, modifiers() withAnnotations annots)
+      in.token match {
+         case IMPORT => importClause(true,annots)
+         case _ =>
+           defOrDcl(caseAwareTokenOffset, modifiers() withAnnotations annots)
+      }
     }
 
     /** {{{
@@ -2939,7 +2944,7 @@ self =>
             }
           case IMPORT =>
             in.flushDoc
-            importClause(false)
+            importClause(false,Nil)
           case x if x == AT || isTemplateIntro || isModifier =>
             joinComment(List(topLevelTmplDef))
           case _ =>
@@ -2996,12 +3001,12 @@ self =>
       while (!isStatSeqEnd) {
         if (in.token == IMPORT) {
           in.flushDoc
-          stats ++= importClause(false)
+          stats ++= importClause(false,Nil)
         } else if (in.token == ARROW) {
           val start = in.skipToken()
           if (in.token == IMPORT) {
              in.flushDoc
-             stats ++= importClause(true)
+             stats ++= importClause(true,Nil)
           } else {
              syntaxErrorOrIncomplete("import after => required", true)
           }
@@ -3009,7 +3014,7 @@ self =>
           in.flushDoc
           stats += statement(InTemplate)
         } else if (isDefIntro || isModifier || in.token == AT) {
-          stats ++= joinComment(nonLocalDefOrDcl)
+          stats ++= joinComment(nonLocalDefOrDclOrAnnotatedImport)
         } else if (!isStatSep) {
           syntaxErrorOrIncomplete("illegal start of definition", true)
         }
@@ -3082,7 +3087,7 @@ self =>
       val stats = new ListBuffer[Tree]
       while (!isStatSeqEnd && in.token != CASE) {
         if (in.token == IMPORT) {
-          stats ++= importClause(false)
+          stats ++= importClause(false,Nil)
           acceptStatSep()
         }
         else if (isExprIntro) {

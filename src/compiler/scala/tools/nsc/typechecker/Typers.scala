@@ -1998,7 +1998,7 @@ trait Typers extends Modes with Adaptations with Tags {
         val unit = new CompilationUnit(file)
         new syntaxAnalyzer.UnitParser(unit)
       }
-      val trees = stringParser(useCase.body+";").nonLocalDefOrDcl
+      val trees = stringParser(useCase.body+";").nonLocalDefOrDclOrAnnotatedImport
       val enclClass = context.enclClass.owner
       def defineAlias(name: Name) =
         if (context.scope.lookup(name) == NoSymbol) {

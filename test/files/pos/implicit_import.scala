@@ -7,7 +7,7 @@ package x {
 }
 
 package object q {
-  => import x._
+  @exported import x._
   class Y {
    print("q.Y")
   }

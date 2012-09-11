@@ -422,7 +422,7 @@ trait Trees { self: Universe =>
   /** The constructor/deconstructor for `Import` instances. */
   val Import: ImportExtractor
 
-  /** An extractor class to create and pattern match with syntax `Import(expr, selectors, isImplicit)`.
+  /** An extractor class to create and pattern match with syntax `Import(expr, selectors, isExported/*TODO:remove*/, anotations)`.
    *  This AST node corresponds to the following Scala code:
    *
    *    [implicit] import expr.{selectors}
