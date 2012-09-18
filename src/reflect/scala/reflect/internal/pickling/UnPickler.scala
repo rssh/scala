@@ -118,14 +118,14 @@ abstract class UnPickler /*extends reflect.generic.UnPickler*/ {
       val tag = bytes(index(i)).toInt
       (firstSymTag <= tag && tag <= lastFirstRangeSymTag &&
        (tag != CLASSsym || !isRefinementSymbolEntry(i))) ||
-      (tag == IMPLICITIMPORTsym)
+      (tag == ANNOTATEDIMPORTsym)
     }
 
     /** Does entry represent an (internal or external) symbol */
     protected def isSymbolRef(i: Int): Boolean = {
       val tag = bytes(index(i))
       (firstSymTag <= tag && tag <= lastFirstRangeExtSymTag) ||
-              (tag == IMPLICITIMPORTsym)
+              (tag == ANNOTATEDIMPORTsym)
     }
 
     /** Does entry represent a name? */
@@ -307,18 +307,24 @@ abstract class UnPickler /*extends reflect.generic.UnPickler*/ {
         case VALsym =>
           if (isModuleRoot) { assert(false); NoSymbol }
           else owner.newTermSymbol(name.toTermName, NoPosition, pflags)
-        case IMPLICITIMPORTsym =>
+        case ANNOTATEDIMPORTsym =>
           if (isModuleRoot) { assert(false); NoSymbol }
           else {
             val endSym = readNat();
-            val base = readTypeRef()
+            val typeRef = readTypeRef()
             var selects: List[Pair[Name,Name]] = Nil
             while(readIndex < endSym) {
               val n1 = readName();
               val n2 = readName();
               selects = (n1,n2)::selects
             }
-            owner.newImport(NoPosition, base, selects, true)
+            typeRef match {
+              case AnnotatedType(annots, tp, selfsym) =>
+                owner.newImport(NoPosition, tp, selects, true, annots)
+              case _ =>
+                //TODO: think - throw error ? or read 'as is' ?
+                owner.newImport(NoPosition, typeRef, selects, true, Nil)
+            } 
           }
         case _ =>
           errorBadSignature("bad symbol tag: " + tag)
@@ -591,7 +597,6 @@ abstract class UnPickler /*extends reflect.generic.UnPickler*/ {
 
         case IMPORTtree =>
           setSym()
-          mods = readModifiersRef()
           val expr = readTreeRef()
           val selectors = until(end, () => {
             val from = readNameRef()
@@ -599,7 +604,19 @@ abstract class UnPickler /*extends reflect.generic.UnPickler*/ {
             ImportSelector(from, -1, to, -1)
           })
 
-          Import(expr, selectors, mods hasFlag IMPLICIT)
+          var base = expr;
+          var annotations: List[Tree] = Nil;
+          var endloop = false;
+          while(!endloop) {
+             base match {
+                case Annotated(annot,base0) => 
+                    annotations = annot::annotations
+                    base = base0
+                case _ =>
+                    endloop = true
+             }
+          }
+          Import(expr, selectors, true, annotations)
 
         case TEMPLATEtree =>
           setSym()

@@ -239,7 +239,7 @@ trait Printers extends api.Printers { self: SymbolTable =>
         case LabelDef(name, params, rhs) =>
           print(symName(tree, name)); printLabelParams(params); printBlock(rhs)
 
-        case Import(expr, selectors, isImplicit) =>
+        case Import(expr, selectors, isExported, annotations) =>
           // Is this selector remapping a name (i.e, {name1 => name2})
           def isNotRemap(s: ImportSelector) : Boolean = (s.name == nme.WILDCARD || s.name == s.rename)
           def selectorToString(s: ImportSelector): String = {
@@ -247,8 +247,11 @@ trait Printers extends api.Printers { self: SymbolTable =>
             if (isNotRemap(s)) from
             else from + "=>" + quotedName(s.rename)
           }
-          if (isImplicit) {
-             print("implicit ")
+          if (!annotations.isEmpty) {
+             print("@");
+             for(a <- annotations) {
+               printTree(a)
+             }
           }
           print("import ", backquotedPath(expr), ".")
           selectors match {

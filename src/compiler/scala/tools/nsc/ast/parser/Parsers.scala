@@ -351,7 +351,7 @@ self =>
         /** For now we require there only be one top level object. */
         var seenModule = false
         val newStmts = stmts collect {
-          case t @ Import(_, _, _) => t
+          case t @ Import(_, _, _, _) => t
           case md @ ModuleDef(mods, name, template) if !seenModule && (md exists isMainMethod) =>
             seenModule = true
             /** This slightly hacky situation arises because we have no way to communicate
@@ -2352,8 +2352,7 @@ self =>
             else List(makeImportSelector(name, nameOffset))
         }
         // reaching here means we're done walking.
-	atPos(start)(Import(expr, selectors, isExported))
-        //atPos(start)(Import(expr, selectors, isImplicit, annotations))
+	atPos(start)(Import(expr, selectors, isExported, annotations))
       }
 
       loop(in.token match {

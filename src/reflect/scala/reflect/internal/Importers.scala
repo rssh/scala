@@ -75,7 +75,9 @@ trait Importers { self: SymbolTable =>
             linkReferenced(myowner.newImport(x.pos, 
                                             importType(x.base), 
                                             x.selectors map (x => (importName(x._1), importName(x._2) ) ), 
-                                            x.isImplicit),x,importSymbol)
+                                            x.isExported,
+                                            x.annotations map ( importAnnotationInfo(_) )
+                                            ),x,importSymbol)
           case x: from.FreeTermSymbol =>
             newFreeTermSymbol(importName(x.name).toTermName, importType(x.info), x.value, x.flags, x.origin)
           case x: from.FreeTypeSymbol =>
@@ -316,7 +318,9 @@ trait Importers { self: SymbolTable =>
     def importImportSymbol(sym: from.ImportSymbol): ImportSymbol =
       importSymbol(sym.owner).newImport(sym.pos, importType(sym.base), 
                   sym.selectors map (x => (importName(x._1),importName(x._2))),
-                  sym.isImplicit)
+                  sym.isExported,
+                  sym.annotations map (importAnnotationInfo(_))
+                  )
 
     def importModifiers(mods: from.Modifiers): Modifiers =
       new Modifiers(mods.flags, importName(mods.privateWithin), mods.annotations map importTree)
@@ -342,8 +346,8 @@ trait Importers { self: SymbolTable =>
           new TypeDef(importModifiers(mods), importName(name).toTypeName, tparams map importTypeDef, importTree(rhs))
         case from.LabelDef(name, params, rhs) =>
           new LabelDef(importName(name).toTermName, params map importIdent, importTree(rhs))
-        case from.Import(expr, selectors, isImplicit) =>
-          new Import(importTree(expr), selectors map importImportSelector, isImplicit)
+        case from.Import(expr, selectors, isExported, annotations) =>
+          new Import(importTree(expr), selectors map importImportSelector, isExported, annotations map importTree)
         case from.Template(parents, self, body) =>
           new Template(parents map importTree, importValDef(self), body map importTree)
         case from.Block(stats, expr) =>

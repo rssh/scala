@@ -259,7 +259,7 @@ trait Trees extends base.Trees { self: Universe =>
   trait ImportApi extends SymTreeApi { this: Import =>
     val expr: Tree
     val selectors: List[ImportSelector]
-    val isImplicit: Boolean
+    val annotations: List[Tree]
   }
 
   override type Template >: Null <: SymTree with TemplateApi
@@ -566,7 +566,7 @@ trait Trees extends base.Trees { self: Universe =>
     def DefDef(tree: Tree, mods: Modifiers, name: Name, tparams: List[TypeDef], vparamss: List[List[ValDef]], tpt: Tree, rhs: Tree): DefDef
     def TypeDef(tree: Tree, mods: Modifiers, name: Name, tparams: List[TypeDef], rhs: Tree): TypeDef
     def LabelDef(tree: Tree, name: Name, params: List[Ident], rhs: Tree): LabelDef
-    def Import(tree: Tree, expr: Tree, selectors: List[ImportSelector], isImplicit: Boolean): Import
+    def Import(tree: Tree, expr: Tree, selectors: List[ImportSelector], annotations: List[Tree]): Import
     def Template(tree: Tree, parents: List[Tree], self: ValDef, body: List[Tree]): Template
     def Block(tree: Tree, stats: List[Tree], expr: Tree): Block
     def CaseDef(tree: Tree, pat: Tree, guard: Tree, body: Tree): CaseDef

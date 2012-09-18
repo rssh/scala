@@ -103,7 +103,7 @@ object PickleFormat {
  *                  | 49 TREE len_Nat 44 TYPEBOUNDStree type_Ref tree_Ref tree_Ref
  *                  | 49 TREE len_Nat 45 EXISTENTIALTYPEtree type_Ref tree_Ref {tree_Ref}
  *                  | 50 MODIFIERS len_Nat flags_Long privateWithin_Ref
- *                  | 51 IMPLICITIMPORTsym len_Nat typeRef { name_Ref name_Ref  }
+ *                  | 51 ANNOTATEDTIMPORTsym len_Nat annotated_typeRef { name_Ref name_Ref  }
  *   SymbolInfo     = name_Ref owner_Ref flags_LongNat [privateWithin_Ref] info_Ref
  *   NameInfo       = <character sequence of length len_Nat in Utf8 format>
  *   NumInfo        = <len_Nat-byte signed number in big endian format>
@@ -214,7 +214,7 @@ object PickleFormat {
 
   final val MODIFIERS = 50
 
-  final val IMPLICITIMPORTsym = 51
+  final val ANNOTATEDIMPORTsym = 51
 
   final val firstSymTag = NONEsym
   final val lastFirstRangeSymTag = VALsym

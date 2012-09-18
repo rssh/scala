@@ -70,18 +70,7 @@ abstract class GenICode extends SubComponent  {
     def gen(trees: List[Tree], ctx: Context): Context = {
       var ctx1 = ctx
       for (t <- trees) {
-         t match {
-           case Import(_,_,_) => // skip
-           case _ =>
-                 try {
-                   ctx1 = gen(t, ctx1)
-                 } catch {
-                   case ex: Exception =>
-                     System.err.println("tree is: " + t.toString())
-                     ex.printStackTrace();
-                     throw new RuntimeException(ex);
-                 }
-         }
+            ctx1 = gen(t, ctx1)
       }
       ctx1
     }

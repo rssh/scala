@@ -43,7 +43,7 @@ trait Namers extends MethodSynthesis {
 
   private def isTemplateContext(ctx: Context): Boolean = ctx.tree match {
     case Template(_, _, _) => true
-    case Import(_, _, _)   => isTemplateContext(ctx.outer)
+    case Import(_, _, _, _)   => isTemplateContext(ctx.outer)
     case _                 => false
   }
 
@@ -212,7 +212,7 @@ trait Namers extends MethodSynthesis {
           case tree @ ValDef(_, _, _, _)                     => enterValDef(tree)
           case tree @ DefDef(_, _, _, _, _, _)               => enterDefDef(tree)
           case tree @ TypeDef(_, _, _, _)                    => enterTypeDef(tree)
-          case tree @ Import(_, _, _)                        =>
+          case tree @ Import(_, _, _, _)                        =>
             val sym = assignSymbol(tree)
             sym match {
               case isym: ImportSymbol =>
@@ -234,7 +234,7 @@ trait Namers extends MethodSynthesis {
     def assignSymbol(tree: Tree): Symbol =
       logAssignSymbol(tree, tree match {
         case PackageDef(pid, _) => createPackageSymbol(tree.pos, pid)
-        case Import(_, _, _)    => createImportSymbol(tree)
+        case Import(_, _, _, _)    => createImportSymbol(tree)
         case mdef: MemberDef    => createMemberSymbol(mdef, mdef.name, -1L)
         case _                  => abort("Unexpected tree: " + tree)
       })
@@ -292,7 +292,7 @@ trait Namers extends MethodSynthesis {
    
     private def createImportSymbol(tree: Tree) = {
       tree match {
-        case Import(expr,selectors,isImplicit) =>
+        case Import(expr,selectors,isExported, annotations) =>
            NoSymbol.newImport(tree.pos, 
                                  new SimpleTypeProxy {
 
@@ -307,8 +307,13 @@ trait Namers extends MethodSynthesis {
 
                                  },
                               selectors.map(x=>(x.name,x.rename)),
-                              isImplicit
+                              isExported,
+                              // TODO: annotation must be lazy
+                              annotations map (x => typer.typedAnnotation(x))
                              ) setInfo completerOf(tree)
+
+         // TODO: add AnnotationsInfo to symbol itself and eliminate
+         // annotations member of Import Symbol
       }
     }
 
@@ -445,7 +450,7 @@ trait Namers extends MethodSynthesis {
 
     private def checkSelectors(tree: Import): Unit = {
       import DuplicatesErrorKinds._
-      val Import(expr, selectors, isImplicit) = tree
+      val Import(expr, selectors, isExported, annotations) = tree
       val base = expr.tpe
 
       def checkNotRedundant(pos: Position, from: Name, to0: Name) {
@@ -1303,7 +1308,7 @@ trait Namers extends MethodSynthesis {
         case TypeDef(_, _, tparams, rhs) =>
           createNamer(tree).typeDefSig(sym, tparams, rhs) //@M!
 
-        case Import(expr, selectors, isImplicit) =>
+        case Import(expr, selectors, isExported, annotations) =>
           val expr1 = typer.typedQualifier(expr)
           typer checkStable expr1
           if (expr1.symbol != null && expr1.symbol.isRootPackage)
@@ -1312,7 +1317,7 @@ trait Namers extends MethodSynthesis {
           if (expr1.isErrorTyped)
             ErrorType
           else {
-            val newImport = treeCopy.Import(tree, expr1, selectors, isImplicit).asInstanceOf[Import]
+            val newImport = treeCopy.Import(tree, expr1, selectors, annotations).asInstanceOf[Import]
             checkSelectors(newImport)
             transformed(tree) = newImport
             // copy symbol and type attributes back into old expression

@@ -277,9 +277,8 @@ abstract class Pickler extends SubComponent {
           putTree(rhs)
           putTrees(params)
 
-        case Import(expr, selectors, isImplicit) =>
-          putMods(if (isImplicit) Modifiers(IMPLICIT) else Modifiers())
-          putTree(expr)
+        case Import(expr, selectors, isExported, annotations) =>
+          putTree(makeAnnotated(expr,annotations))
           for (ImportSelector(from, _, to, _) <- selectors) {
             putEntry(from)
             putEntry(to)
@@ -716,11 +715,10 @@ abstract class Pickler extends SubComponent {
           writeRefs(params)
           TREE
 
-        case tree@Import(expr, selectors , isImplicit) =>
+        case tree@Import(expr, selectors , isExported, annotations) =>
           writeNat(IMPORTtree)
-          writeRef(tree.tpe)
+          writeRef(makeAnnotated(tree, annotations))
           writeRef(tree.symbol)
-          writeRef(if (isImplicit) Modifiers(IMPLICIT) else Modifiers())
           writeRef(expr)
           for (ImportSelector(from, _, to, _) <- selectors) {
             writeRef(from)
@@ -990,6 +988,13 @@ abstract class Pickler extends SubComponent {
       patchNat(startpos, writeBody(entry))
       patchNat(startpos + 1, writeIndex - (startpos + 2))
     }
+
+    private def makeAnnotated(base:Tree, annotations:List[Tree]):Tree =
+      annotations match {
+         case a::rest => makeAnnotated(Annotated(a,base),rest)
+         case Nil => base
+      }
+    
 
     /** Print entry for diagnostics */
     def printEntryAtIndex(idx: Int) = printEntry(entries(idx))

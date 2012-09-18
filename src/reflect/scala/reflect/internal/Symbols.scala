@@ -225,8 +225,8 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
     //final def newImport(pos: Position): TermSymbol =
     //  newTermSymbol(nme.IMPORT, pos)
 
-    final def newImport(pos: Position, base: Type, selectors:List[Pair[Name,Name]], isImplicit:Boolean): ImportSymbol =
-        new ImportSymbol(this, pos, base, selectors, isImplicit) 
+    final def newImport(pos: Position, base: Type, selectors:List[Pair[Name,Name]], isExported:Boolean, annotations: List[AnnotationInfo]): ImportSymbol =
+        new ImportSymbol(this, pos, base, selectors, isExported, annotations) 
 
     final def newModuleSymbol(name: TermName, pos: Position = NoPosition, newFlags: Long = 0L): ModuleSymbol =
       newTermSymbol(name, pos, newFlags).asInstanceOf[ModuleSymbol]
@@ -2524,12 +2524,13 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
   class ImportSymbol protected[Symbols] (initOwner: Symbol, initPos: Position,  
                                          val base: Type, 
                                          val selectors: List[Pair[Name,Name]], 
-                                         override val isImplicit: Boolean)
+                                         val isExported: Boolean,
+                                         override val annotations: List[AnnotationInfo])
      extends TermSymbol(initOwner, initPos, nme.IMPORT) with ImportSymbolApi 
   {
     require( base ne null )
     override def decodedName = baseName + "." + selectorsName +
-                                "(" + implicitString + ")"
+                                "(" + annotations.mkString(",") + ")"
 
     def baseName: String = if (base ne null) base.toString else "null" ;
 
@@ -2544,9 +2545,9 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
           } else "")
        } mkString "," 
 
-    def implicitString = if (isImplicit) "implicit" else ""
+    def exportedString = if (isExported) "@exported" else ""
 
-    override def toString = (if (isImplicit) implicitString+" " else "")+"import "+baseName+"."+selectorsName
+    override def toString = (if (isExported) exportedString+" " else "")+"import "+baseName+"."+selectorsName
 
   }
 

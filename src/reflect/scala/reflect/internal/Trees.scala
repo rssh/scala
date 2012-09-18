@@ -296,7 +296,7 @@ trait Trees extends api.Trees { self: SymbolTable =>
     val wildList = List(wild)
   }
 
-  case class Import(expr: Tree, selectors: List[ImportSelector], isImplicit:Boolean)
+  case class Import(expr: Tree, selectors: List[ImportSelector], isExported:Boolean, annotations:List[Tree])
        extends SymTree with ImportApi
   object Import extends ImportExtractor
 
@@ -511,8 +511,8 @@ trait Trees extends api.Trees { self: SymbolTable =>
       new TypeDef(mods, name.toTypeName, tparams, rhs).copyAttrs(tree)
     def LabelDef(tree: Tree, name: Name, params: List[Ident], rhs: Tree) =
       new LabelDef(name.toTermName, params, rhs).copyAttrs(tree)
-    def Import(tree: Tree, expr: Tree, selectors: List[ImportSelector], isImplicit: Boolean) =
-      new Import(expr, selectors, isImplicit).copyAttrs(tree)
+    def Import(tree: Tree, expr: Tree, selectors: List[ImportSelector], annotations: List[Tree]) =
+      new Import(expr, selectors, !annotations.isEmpty, annotations).copyAttrs(tree)
     def Template(tree: Tree, parents: List[Tree], self: ValDef, body: List[Tree]) =
       new Template(parents, self, body).copyAttrs(tree)
     def Block(tree: Tree, stats: List[Tree], expr: Tree) =
@@ -628,10 +628,10 @@ trait Trees extends api.Trees { self: SymbolTable =>
       if (name0 == name) && (params0 == params) && (rhs0 == rhs) => t
       case _ => treeCopy.LabelDef(tree, name, params, rhs)
     }
-    def Import(tree: Tree, expr: Tree, selectors: List[ImportSelector], isImplicit: Boolean) = tree match {
-      case t @ Import(expr0, selectors0, isImplicit0)
-      if (expr0 == expr) && (selectors0 == selectors) && isImplicit == isImplicit0 => t
-      case _ => treeCopy.Import(tree, expr, selectors, isImplicit)
+    def Import(tree: Tree, expr: Tree, selectors: List[ImportSelector], annotations: List[Tree]) = tree match {
+      case t @ Import(expr0, selectors0, isExported0, annotations0)
+      if (expr0 == expr) && (selectors0 == selectors) && annotations == annotations0 => t
+      case _ => treeCopy.Import(tree, expr, selectors, annotations)
     }
     def Template(tree: Tree, parents: List[Tree], self: ValDef, body: List[Tree]) = tree match {
       case t @ Template(parents0, self0, body0)
@@ -1065,7 +1065,7 @@ trait Trees extends api.Trees { self: SymbolTable =>
         }
       case LabelDef(name, params, rhs) =>
         traverseTrees(params); traverse(rhs)
-      case Import(expr, selectors, isImplicit) =>
+      case Import(expr, selectors, isImplicit, annotations) =>
         traverse(expr)
       case Annotated(annot, arg) =>
         traverse(annot); traverse(arg)
@@ -1211,8 +1211,8 @@ trait Trees extends api.Trees { self: SymbolTable =>
         treeCopy.TypeBoundsTree(tree, transform(lo), transform(hi))
       case Typed(expr, tpt) =>
         treeCopy.Typed(tree, transform(expr), transform(tpt))
-      case Import(expr, selectors, isImplicit) =>
-        treeCopy.Import(tree, transform(expr), selectors, isImplicit)
+      case Import(expr, selectors, isExported, annotations) =>
+        treeCopy.Import(tree, transform(expr), selectors, annotations)
       case Template(parents, self, body) =>
         treeCopy.Template(tree, transformTrees(parents), transformValDef(self), transformStats(body, tree.symbol))
       case ClassDef(mods, name, tparams, impl) =>

@@ -2649,7 +2649,7 @@ trait Typers extends Modes with Adaptations with Tags {
           OnlyDeclarationsError(stat)
         else
           stat match {
-            case imp @ Import(_, _,_) =>
+            case imp @ Import(_, _,_,_) =>
               imp.symbol.initialize
               if (!imp.symbol.isError) {
                 imp.symbol match {

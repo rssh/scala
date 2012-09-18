@@ -434,14 +434,14 @@ trait Trees { self: Universe =>
    *
    *  Would be represented as:
    *
-   *    Import(qual, List(("x", "x"), ("y", "z"), (WILDCARD, null)))
+   *    Import(qual, List(("x", "x"), ("y", "z"), (WILDCARD, null)),Nil)
    *
    *  The symbol of an `Import` is an import symbol @see Symbol.newImport.
    *  It's used primarily as a marker to check that the import has been typechecked.
    */
   abstract class ImportExtractor {
-    def apply(expr: Tree, selectors: List[ImportSelector], isImplicit:Boolean): Import
-    def unapply(import_ : Import): Option[(Tree, List[ImportSelector], Boolean)]
+    def apply(expr: Tree, selectors: List[ImportSelector], isExported:Boolean, annotations: List[Tree]): Import
+    def unapply(import_ : Import): Option[(Tree, List[ImportSelector], Boolean, List[Tree])]
   }
 
   /** Instantiation template of a class or trait

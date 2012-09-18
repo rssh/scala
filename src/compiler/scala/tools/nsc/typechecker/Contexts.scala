@@ -67,7 +67,7 @@ trait Contexts { self: Analyzer =>
     import definitions._
     var sc = startContext
     for (sym <- rootImports(unit)) {
-      sc = sc.makeNewImport(sym, false)
+      sc = sc.makeNewImport(sym)
       sc.depth += 1
     }
     val c = sc.make(unit, tree, sc.owner, sc.scope, sc.imports)
@@ -81,7 +81,7 @@ trait Contexts { self: Analyzer =>
     var sc = startContext
     while (sc != NoContext) {
       sc.tree match {
-        case Import(qual, _, _ ) => qual.tpe = singleType(qual.symbol.owner.thisType, qual.symbol)
+        case Import(qual, _, _, _ ) => qual.tpe = singleType(qual.symbol.owner.thisType, qual.symbol)
         case _ =>
       }
       sc = sc.outer
@@ -296,14 +296,14 @@ trait Contexts { self: Analyzer =>
       c
     }
 
-    def makeNewImport(sym: Symbol, isImplicit: Boolean): Context =
-       makeNewImportTree(gen.mkWildcardImport(sym,isImplicit))
+    def makeNewImport(sym: Symbol): Context =
+       makeNewImportTree(gen.mkWildcardImport(sym))
 
     def makeNewImport(imp: Import, sym: ImportSymbol): Context =
     {
      // we can't add generation of implicit imports here, because call if
      // importInfo.qual.tpe give us 'cyclic reference error'  (we are before typing here)
-      if (imp.isImplicit) {
+      if (imp.isExported) {
         scope enter sym
       }
       makeNewImportTree(imp: Import)

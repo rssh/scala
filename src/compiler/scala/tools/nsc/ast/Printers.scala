@@ -213,7 +213,7 @@ trait Printers extends reflect.internal.Printers { this: Global =>
       case Annotated(annot, arg)  =>
       case AssignOrNamedArg(lhs, rhs) =>
       case DocDef(comment, definition) =>
-      case Import(expr, selectors, isImplicit) =>
+      case Import(expr, selectors, isExported, annotations) =>
 
       // eliminated by refchecks
       case ModuleDef(mods, name, impl) =>

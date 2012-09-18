@@ -438,7 +438,7 @@ trait TypeDiagnostics {
     def cyclicReferenceMessage(sym: Symbol, tree: Tree) = condOpt(tree) {
       case ValDef(_, _, tpt, _) if tpt.tpe == null        => "recursive "+sym+" needs type"
       case DefDef(_, _, _, _, tpt, _) if tpt.tpe == null  => List(cyclicAdjective(sym), sym, "needs result type") mkString " "
-      case Import(expr, selectors, isImplicit)                        =>
+      case Import(expr, selectors, isExported, annotations)                        =>
         ( "encountered unrecoverable cycle resolving import." +
           "\nNote: this is often due in part to a class depending on a definition nested within its companion." +
           "\nIf applicable, you may wish to try moving some members into another object."
@@ -465,7 +465,7 @@ trait TypeDiagnostics {
             throw ex
           } else {
             val pos = info.tree match {
-              case Import(expr, _, _)  => expr.pos
+              case Import(expr, _, _, _)  => expr.pos
               case _                => ex.pos
             }
             contextError(context0, pos, cyclicReferenceMessage(sym, info.tree) getOrElse ex.getMessage())

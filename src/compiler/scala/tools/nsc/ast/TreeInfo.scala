@@ -48,7 +48,7 @@ abstract class TreeInfo extends reflect.internal.TreeInfo {
 
   def isAllowedInUniversalTrait(stat: Tree): Boolean = stat match {
     case _: ValDef => false
-    case Import(_, _, _ ) | EmptyTree => true
+    case Import(_, _, _, _ ) | EmptyTree => true
     case _: DefTree => true
     case _ => false
   }
