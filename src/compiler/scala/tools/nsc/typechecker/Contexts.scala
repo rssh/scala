@@ -303,7 +303,8 @@ trait Contexts { self: Analyzer =>
     {
      // we can't add generation of implicit imports here, because call if
      // importInfo.qual.tpe give us 'cyclic reference error'  (we are before typing here)
-      if (imp.isExported) {
+     // TODO: check for @exported
+      if (!imp.annotations.isEmpty) {
         scope enter sym
       }
       makeNewImportTree(imp: Import)

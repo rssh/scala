@@ -308,8 +308,7 @@ trait Namers extends MethodSynthesis {
                                  },
                               selectors.map(x=>(x.name,x.rename)),
                               isExported,
-                              // TODO: annotation must be lazy
-                              annotations map (x => typer.typedAnnotation(x))
+                              annotations map( ann => AnnotationInfo lazily enteringTyper(typer typedAnnotation ann))
                              ) setInfo completerOf(tree)
 
          // TODO: add AnnotationsInfo to symbol itself and eliminate
