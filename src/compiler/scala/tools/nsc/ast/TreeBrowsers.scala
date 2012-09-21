@@ -397,7 +397,7 @@ abstract class TreeBrowsers {
       case TypeDef(mods, name, tparams, rhs) =>
         mods.annotations ::: rhs :: tparams // @M: was List(rhs, lobound)
 
-      case Import(expr, selectors, isExported, annotations) =>
+      case Import(expr, selectors, annotations) =>
         List(expr)
 
       case CaseDef(pat, guard, body) =>

@@ -616,7 +616,7 @@ abstract class UnPickler /*extends reflect.generic.UnPickler*/ {
                     endloop = true
              }
           }
-          Import(expr, selectors, true, annotations)
+          Import(expr, selectors, annotations)
 
         case TEMPLATEtree =>
           setSym()

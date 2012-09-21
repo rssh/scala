@@ -41,12 +41,12 @@ abstract class TreeGen extends reflect.internal.TreeGen with TreeDSL {
       NoSymbol
         newImport(NoPosition, qual.tpe,
                   List((nme.WILDCARD,null)),
-                  false, Nil)
+                  Nil)
           setFlag SYNTHETIC
           setInfo analyzer.ImportType(qual)
     )
     val importTree = (
-      Import(qual, ImportSelector.wildList, false, Nil)
+      Import(qual, ImportSelector.wildList, Nil)
         setSymbol importSym
           setType NoType
     )

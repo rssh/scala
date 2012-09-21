@@ -24,7 +24,6 @@ trait Imports {
     val tree = Import(
       tl.foldLeft(Ident(hd): Tree)((x, y) => Select(x, y)),
       ImportSelector.wildList,
-      false,
       Nil
     )
     tree setSymbol sym

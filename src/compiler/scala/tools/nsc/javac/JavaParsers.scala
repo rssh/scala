@@ -640,7 +640,7 @@ trait JavaParsers extends ast.parser.ParsersCommon with JavaScanners {
 
     def importCompanionObject(cdef: ClassDef): Tree =
       atPos(cdef.pos) {
-        Import(Ident(cdef.name.toTermName), ImportSelector.wildList, false, Nil)
+        Import(Ident(cdef.name.toTermName), ImportSelector.wildList, Nil)
       }
 
     // Importing the companion object members cannot be done uncritically: see
@@ -698,7 +698,7 @@ trait JavaParsers extends ast.parser.ParsersCommon with JavaScanners {
           case nme.WILDCARD => ImportSelector(lastname, lastnameOffset, null, -1)
           case _            => ImportSelector(lastname, lastnameOffset, lastname, lastnameOffset)
         }
-        List(atPos(pos)(Import(qual, List(selector), false, Nil)))
+        List(atPos(pos)(Import(qual, List(selector), Nil)))
       }
     }
 

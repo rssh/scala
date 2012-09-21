@@ -178,7 +178,7 @@ trait MemberHandlers {
   }
 
   class ImportHandler(imp: Import) extends MemberHandler(imp) {
-    val Import(expr, selectors, isExported, annotations) = imp
+    val Import(expr, selectors, annotations) = imp
     def targetType: Type = intp.typeOfExpression("" + expr)
     override def isLegalTopLevel = true
 

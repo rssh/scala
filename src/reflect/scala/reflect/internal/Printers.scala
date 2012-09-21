@@ -239,7 +239,7 @@ trait Printers extends api.Printers { self: SymbolTable =>
         case LabelDef(name, params, rhs) =>
           print(symName(tree, name)); printLabelParams(params); printBlock(rhs)
 
-        case Import(expr, selectors, isExported, annotations) =>
+        case Import(expr, selectors, annotations) =>
           // Is this selector remapping a name (i.e, {name1 => name2})
           def isNotRemap(s: ImportSelector) : Boolean = (s.name == nme.WILDCARD || s.name == s.rename)
           def selectorToString(s: ImportSelector): String = {

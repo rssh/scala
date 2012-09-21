@@ -56,7 +56,7 @@ trait GenTrees {
         reifyBoundType(tree)
       case Literal(const @ Constant(_)) =>
         mirrorCall(nme.Literal, reifyProduct(const))
-      case Import(expr, selectors, isExported, annotations) =>
+      case Import(expr, selectors, annotations) =>
         mirrorCall(nme.Import, reify(expr), 
                                mkList(selectors map reifyProduct), 
                                reifyList(annotations))

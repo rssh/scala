@@ -225,8 +225,8 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
     //final def newImport(pos: Position): TermSymbol =
     //  newTermSymbol(nme.IMPORT, pos)
 
-    final def newImport(pos: Position, base: Type, selectors:List[Pair[Name,Name]], isExported:Boolean, annotations: List[AnnotationInfo]): ImportSymbol =
-        new ImportSymbol(this, pos, base, selectors, isExported, annotations) 
+    final def newImport(pos: Position, base: Type, selectors:List[Pair[Name,Name]], annotations: List[AnnotationInfo]): ImportSymbol =
+        new ImportSymbol(this, pos, base, selectors, annotations) 
 
     final def newModuleSymbol(name: TermName, pos: Position = NoPosition, newFlags: Long = 0L): ModuleSymbol =
       newTermSymbol(name, pos, newFlags).asInstanceOf[ModuleSymbol]
@@ -2523,8 +2523,7 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
 
   class ImportSymbol protected[Symbols] (initOwner: Symbol, initPos: Position,  
                                          val base: Type, 
-                                         val selectors: List[Pair[Name,Name]], 
-                                         val isExported: Boolean,
+                                         val selectors: List[Pair[Name,Name]],
                                          override val annotations: List[AnnotationInfo])
      extends TermSymbol(initOwner, initPos, nme.IMPORT) with ImportSymbolApi 
   {
@@ -2545,9 +2544,7 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
           } else "")
        } mkString "," 
 
-    def exportedString = if (isExported) "@exported" else ""
-
-    override def toString = (if (isExported) exportedString+" " else "")+"import "+baseName+"."+selectorsName
+    override def toString = annotationsString+"import "+baseName+"."+selectorsName
 
   }
 

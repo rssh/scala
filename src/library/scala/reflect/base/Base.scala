@@ -543,7 +543,7 @@ class Base extends Universe { self =>
   case class ImportSelector(name: Name, namePos: Int, rename: Name, renamePos: Int)
   object ImportSelector extends ImportSelectorExtractor
 
-  case class Import(expr: Tree, selectors: List[ImportSelector], isExported: Boolean, annotations: List[Tree] )
+  case class Import(expr: Tree, selectors: List[ImportSelector], annotations: List[Tree] )
        extends SymTree
   object Import extends ImportExtractor
 
