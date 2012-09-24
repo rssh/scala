@@ -245,8 +245,7 @@ trait Types extends api.Types { self: SymbolTable =>
     override def parents = underlying.parents
     override def prefix = underlying.prefix
     override def decls = underlying.decls
-    override def implicitImports = underlying.implicitImports
-    //override def implicitImport(name: TermName): Symbol = underlying.implicitImport(name)
+    override def exportedImports = underlying.exportedImports
     override def baseType(clazz: Symbol) = underlying.baseType(clazz)
     override def baseTypeSeq = underlying.baseTypeSeq
     override def baseTypeSeqDepth = underlying.baseTypeSeqDepth
@@ -636,22 +635,22 @@ trait Types extends api.Types { self: SymbolTable =>
     /** For a classtype or refined type - implicit imports, the empty scope
      * for all other types.
      */
-    def implicitImports: List[ImportSymbol] = decls.lookupAll(nme.IMPORT) flatMap {
+    def exportedImports: List[ImportSymbol] = decls.lookupAll(nme.IMPORT) flatMap {
                                                   // TODO:  check that annotation is @exported
                                                   case sym: ImportSymbol => if (!sym.annotations.isEmpty) Some(sym) else None
                                               } toList
 
     /** Find name in implicit imports
      */
-    def implicitImport(name: Name): Symbol =
-           findImplicitImport(name,Set())._1
+    def exportedImport(name: Name): Symbol =
+           findExportedImport(name,Set())._1
 
-    private def findImplicitImport(name: Name, rtrack:Set[Type]): (Symbol, Set[Type]) =
+    private def findExportedImport(name: Name, rtrack:Set[Type]): (Symbol, Set[Type]) =
     {
       var result: Symbol = NoSymbol
       var nrtrack = (rtrack + this)
       if (!rtrack.contains(this)) {
-        var cii = implicitImports
+        var cii = exportedImports
         while( cii!=Nil && result == NoSymbol) {
          val c = cii.head
          cii = cii.tail
@@ -671,7 +670,7 @@ trait Types extends api.Types { self: SymbolTable =>
             }
          }
          if (result == NoSymbol) {
-            val (r,t) = c.base.findImplicitImport(name, nrtrack)
+            val (r,t) = c.base.findExportedImport(name, nrtrack)
             result = r
             nrtrack = t
          }
@@ -688,7 +687,7 @@ trait Types extends api.Types { self: SymbolTable =>
         Nil
       } else {
        var newAlready = alreadyExported + this
-       implicitImports.flatMap(x =>
+       exportedImports.flatMap(x =>
          if (newAlready.contains(x.base)) Nil
          else x.selectors.flatMap( sel =>
            if (sel._1 == nme.WILDCARD) {
@@ -1365,7 +1364,7 @@ trait Types extends api.Types { self: SymbolTable =>
     def supertype: Type
     override def parents: List[Type] = supertype.parents
     override def decls: Scope = supertype.decls
-    override def implicitImports: List[ImportSymbol] = supertype.implicitImports
+    override def exportedImports: List[ImportSymbol] = supertype.exportedImports
     override def baseType(clazz: Symbol): Type = supertype.baseType(clazz)
     override def baseTypeSeq: BaseTypeSeq = supertype.baseTypeSeq
     override def baseTypeSeqDepth: Int = supertype.baseTypeSeqDepth
@@ -2522,8 +2521,8 @@ trait Types extends api.Types { self: SymbolTable =>
       thisInfo.decls
     }
 
-    override def implicitImports: List[ImportSymbol] = {
-      thisInfo.implicitImports
+    override def exportedImports: List[ImportSymbol] = {
+      thisInfo.exportedImports
     }
 
     protected[Types] def baseTypeSeqImpl: BaseTypeSeq = sym.info.baseTypeSeq map transform
@@ -2785,7 +2784,7 @@ trait Types extends api.Types { self: SymbolTable =>
     override def paramTypes: List[Type] = resultType.paramTypes
     override def parents: List[Type] = resultType.parents
     override def decls: Scope = resultType.decls
-    override def implicitImports: List[ImportSymbol] = resultType.implicitImports
+    override def exportedImports: List[ImportSymbol] = resultType.exportedImports
     override def termSymbol: Symbol = resultType.termSymbol
     override def typeSymbol: Symbol = resultType.typeSymbol
     override def boundSyms = immutable.Set[Symbol](typeParams ++ resultType.boundSyms: _*)

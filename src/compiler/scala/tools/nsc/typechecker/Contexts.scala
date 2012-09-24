@@ -748,7 +748,7 @@ trait Contexts { self: Analyzer =>
         else if (selectors.head.name == nme.WILDCARD && !renamed) {
           result = qual.tpe.nonLocalMember(name)
           if (result == NoSymbol) {
-             result = qual.tpe.implicitImport(name)
+             result = qual.tpe.exportedImport(name)
           }
         }
         selectors = selectors.tail
