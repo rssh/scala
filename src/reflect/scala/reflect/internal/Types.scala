@@ -636,8 +636,7 @@ trait Types extends api.Types { self: SymbolTable =>
      * for all other types.
      */
     def exportedImports: List[ImportSymbol] = decls.lookupAll(nme.IMPORT) flatMap {
-                                                  // TODO:  check that annotation is @exported
-                                                  case sym: ImportSymbol => if (!sym.annotations.isEmpty) Some(sym) else None
+                                                  case sym: ImportSymbol => if (sym.hasAnnotation(ExportedClass)) Some(sym) else None
                                               } toList
 
     /** Find name in implicit imports

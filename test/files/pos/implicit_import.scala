@@ -1,5 +1,7 @@
 package vii
 
+import scala.annotation.exported
+
 package x {
  class X {
    print("x.X")
