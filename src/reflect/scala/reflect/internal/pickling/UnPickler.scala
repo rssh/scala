@@ -320,10 +320,10 @@ abstract class UnPickler /*extends reflect.generic.UnPickler*/ {
             }
             typeRef match {
               case AnnotatedType(annots, tp, selfsym) =>
-                owner.newImport(NoPosition, tp, selects, true, annots)
+                owner.newImport(NoPosition, tp, selects).withAnnotations(annots)
               case _ =>
                 //TODO: think - throw error ? or read 'as is' ?
-                owner.newImport(NoPosition, typeRef, selects, true, Nil)
+                owner.newImport(NoPosition, typeRef, selects)
             } 
           }
         case _ =>

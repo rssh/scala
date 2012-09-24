@@ -225,8 +225,8 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
     //final def newImport(pos: Position): TermSymbol =
     //  newTermSymbol(nme.IMPORT, pos)
 
-    final def newImport(pos: Position, base: Type, selectors:List[Pair[Name,Name]], annotations: List[AnnotationInfo]): ImportSymbol =
-        new ImportSymbol(this, pos, base, selectors, annotations) 
+    final def newImport(pos: Position, base: Type, selectors:List[Pair[Name,Name]]): ImportSymbol =
+        new ImportSymbol(this, pos, base, selectors) 
 
     final def newModuleSymbol(name: TermName, pos: Position = NoPosition, newFlags: Long = 0L): ModuleSymbol =
       newTermSymbol(name, pos, newFlags).asInstanceOf[ModuleSymbol]
@@ -2523,13 +2523,13 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
 
   class ImportSymbol protected[Symbols] (initOwner: Symbol, initPos: Position,  
                                          val base: Type, 
-                                         val selectors: List[Pair[Name,Name]],
-                                         override val annotations: List[AnnotationInfo])
+                                         val selectors: List[Pair[Name,Name]]
+                                         )
      extends TermSymbol(initOwner, initPos, nme.IMPORT) with ImportSymbolApi 
   {
     require( base ne null )
     override def decodedName = baseName + "." + selectorsName +
-                                "(" + annotations.mkString(",") + ")"
+                                "(" + getAnnotations.mkString(",") + ")"
 
     def baseName: String = if (base ne null) base.toString else "null" ;
 

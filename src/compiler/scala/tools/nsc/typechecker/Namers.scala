@@ -306,12 +306,12 @@ trait Namers extends MethodSynthesis {
                                              else "null")  + "]>"
 
                                  },
-                              selectors.map(x=>(x.name,x.rename)),
-                              annotations map( ann => AnnotationInfo lazily enteringTyper(typer typedAnnotation ann))
-                             ) setInfo completerOf(tree)
+                               selectors.map(x=>(x.name,x.rename))
+                             ) withAnnotations(
+                                 annotations map( ann => AnnotationInfo lazily enteringTyper(typer typedAnnotation ann))
+                              ) setInfo completerOf(tree)
+                              
 
-         // TODO: add AnnotationsInfo to symbol itself and eliminate
-         // annotations member of Import Symbol
       }
     }
 

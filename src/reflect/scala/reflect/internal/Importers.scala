@@ -74,10 +74,11 @@ trait Importers { self: SymbolTable =>
           case x: from.ImportSymbol =>
             linkReferenced(myowner.newImport(x.pos, 
                                             importType(x.base), 
-                                            x.selectors map (x => (importName(x._1), importName(x._2) ) ), 
-                                            x.isExported,
-                                            x.annotations map ( importAnnotationInfo(_) )
-                                            ),x,importSymbol)
+                                            x.selectors map (x => (importName(x._1), importName(x._2) ) )
+                                            ).withAnnotations(
+                                              x.getAnnotations map ( importAnnotationInfo(_) )
+                                            ),
+                                            x,importSymbol)
           case x: from.FreeTermSymbol =>
             newFreeTermSymbol(importName(x.name).toTermName, importType(x.info), x.value, x.flags, x.origin)
           case x: from.FreeTypeSymbol =>
@@ -317,9 +318,9 @@ trait Importers { self: SymbolTable =>
 
     def importImportSymbol(sym: from.ImportSymbol): ImportSymbol =
       importSymbol(sym.owner).newImport(sym.pos, importType(sym.base), 
-                  sym.selectors map (x => (importName(x._1),importName(x._2))),
-                  sym.isExported,
-                  sym.annotations map (importAnnotationInfo(_))
+                  sym.selectors map (x => (importName(x._1),importName(x._2)))
+                  ).withAnnotations(
+                    sym.getAnnotations map (importAnnotationInfo(_))
                   )
 
     def importModifiers(mods: from.Modifiers): Modifiers =
