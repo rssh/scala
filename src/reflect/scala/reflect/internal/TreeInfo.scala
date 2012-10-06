@@ -67,7 +67,7 @@ abstract class TreeInfo {
 
   /** Is tree an expression which can be inlined without affecting program semantics?
    *
-   *  Note that this is not called "isExprSafeToInline" since purity (lack of side-effects)
+   *  Note that this is not called "isExprPure" since purity (lack of side-effects)
    *  is not the litmus test.  References to modules and lazy vals are side-effecting,
    *  both because side-effecting code may be executed and because the first reference
    *  takes a different code path than all to follow; but they are safe to inline
@@ -247,7 +247,7 @@ abstract class TreeInfo {
 
   /** Is tree a variable pattern? */
   def isVarPattern(pat: Tree): Boolean = pat match {
-    case x: Ident           => !x.isBackquoted && isVariableName(x.name)
+    case x: Ident           => !x.isBackquoted && nme.isVariableName(x.name)
     case _                  => false
   }
   def isDeprecatedIdentifier(tree: Tree): Boolean = tree match {
@@ -311,14 +311,6 @@ abstract class TreeInfo {
 
   /** Is name a left-associative operator? */
   def isLeftAssoc(operator: Name) = operator.nonEmpty && (operator.endChar != ':')
-
-  private val reserved = Set[Name](nme.false_, nme.true_, nme.null_)
-
-  /** Is name a variable name? */
-  def isVariableName(name: Name): Boolean = {
-    val first = name.startChar
-    ((first.isLower && first.isLetter) || first == '_') && !reserved(name)
-  }
 
   /** Is tree a `this` node which belongs to `enclClass`? */
   def isSelf(tree: Tree, enclClass: Symbol): Boolean = tree match {
@@ -405,19 +397,31 @@ abstract class TreeInfo {
     case _                          => false
   }
 
-  /** Does this CaseDef catch Throwable? */
-  def catchesThrowable(cdef: CaseDef) = catchesAllOf(cdef, ThrowableClass.tpe)
+  private def hasNoSymbol(t: Tree) = t.symbol == null || t.symbol == NoSymbol
 
-  /** Does this CaseDef catch everything of a certain Type? */
-  def catchesAllOf(cdef: CaseDef, threshold: Type) = {
-    def unbound(t: Tree) = t.symbol == null || t.symbol == NoSymbol
+  /** If this CaseDef assigns a name to its top-level pattern,
+   *  in the form 'expr @ pattern' or 'expr: pattern', returns
+   *  the name. Otherwise, nme.NO_NAME.
+   *
+   *  Note: in the case of Constant patterns such as 'case x @ "" =>',
+   *  the pattern matcher eliminates the binding and inlines the constant,
+   *  so as far as this method is likely to be able to determine,
+   *  the name is NO_NAME.
+   */
+  def assignedNameOfPattern(cdef: CaseDef): Name = cdef.pat match {
+    case Bind(name, _)  => name
+    case Ident(name)    => name
+    case _              => nme.NO_NAME
+  }
+
+  /** Does this CaseDef catch Throwable? */
+  def catchesThrowable(cdef: CaseDef) = (
     cdef.guard.isEmpty && (unbind(cdef.pat) match {
       case Ident(nme.WILDCARD)       => true
-      case i@Ident(name)             => unbound(i)
-      case Typed(_, tpt)             => (tpt.tpe != null) && (threshold <:< tpt.tpe)
+      case i@Ident(name)             => hasNoSymbol(i)
       case _                         => false
     })
-  }
+  )
 
   /** Is this pattern node a catch-all or type-test pattern? */
   def isCatchCase(cdef: CaseDef) = cdef match {

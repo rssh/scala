@@ -85,8 +85,31 @@ trait ContextErrors {
 
     def typeErrorMsg(found: Type, req: Type, possiblyMissingArgs: Boolean) = {
       def missingArgsMsg = if (possiblyMissingArgs) "\n possible cause: missing arguments for method or constructor" else ""
+
       "type mismatch" + foundReqMsg(found, req) + missingArgsMsg
     }
+  }
+
+  def notAnyRefMessage(found: Type): String = {
+    val tp        = found.widen
+    def name      = tp.typeSymbol.nameString
+    def parents   = tp.parents filterNot isTrivialTopType
+    def onlyAny   = tp.parents forall (_.typeSymbol == AnyClass)
+    def parents_s = ( if (parents.isEmpty) tp.parents else parents ) mkString ", "
+    def what = (
+      if (tp.typeSymbol.isAbstractType) {
+        val descr = if (onlyAny) "unbounded" else "bounded only by " + parents_s
+        s"$name is $descr, which means AnyRef is not a known parent"
+      }
+      else if (tp.typeSymbol.isAnonOrRefinementClass)
+        s"the parents of this type ($parents_s) extend Any, not AnyRef"
+      else
+        s"$name extends Any, not AnyRef"
+    )
+    if (isPrimitiveValueType(found) || isTrivialTopType(tp)) "" else "\n" +
+       s"""|Note that $what.
+           |Such types can participate in value classes, but instances
+           |cannot appear in singleton types or in reference comparisons.""".stripMargin
   }
 
   import ErrorUtils._
@@ -293,12 +316,17 @@ trait ContextErrors {
               else
                 ""
             )
-            companion + semicolon
-          }
-          withAddendum(qual.pos)(
-              if (name == nme.CONSTRUCTOR) target + " does not have a constructor"
-              else nameString + " is not a member of " + targetKindString + target.directObjectString + addendum
+            val notAnyRef = (
+              if (ObjectClass.info.member(name).exists) notAnyRefMessage(target)
+              else ""
             )
+            companion + notAnyRef + semicolon
+          }
+          def targetStr = targetKindString + target.directObjectString
+          withAddendum(qual.pos)(
+            if (name == nme.CONSTRUCTOR) s"$target does not have a constructor"
+            else s"$nameString is not a member of $targetStr$addendum"
+          )
         }
         issueNormalTypeError(sel, errMsg)
         // the error has to be set for the copied tree, otherwise
@@ -439,9 +467,6 @@ trait ContextErrors {
       def NamedAndDefaultArgumentsNotSupportedForMacros(tree: Tree, fun: Tree) =
         NormalTypeError(tree, "macros application do not support named and/or default arguments")
 
-      def WrongNumberOfArgsError(tree: Tree, fun: Tree) =
-        NormalTypeError(tree, "wrong number of arguments for "+ treeSymTypeMsg(fun))
-
       def TooManyArgsNamesDefaultsError(tree: Tree, fun: Tree) =
         NormalTypeError(tree, "too many arguments for "+treeSymTypeMsg(fun))
 
@@ -481,14 +506,21 @@ trait ContextErrors {
       def TooManyArgsPatternError(fun: Tree) =
         NormalTypeError(fun, "too many arguments for unapply pattern, maximum = "+definitions.MaxTupleArity)
 
-      def WrongNumberArgsPatternError(tree: Tree, fun: Tree) =
-        NormalTypeError(tree, "wrong number of arguments for "+treeSymTypeMsg(fun))
+      def WrongNumberOfArgsError(tree: Tree, fun: Tree) =
+        NormalTypeError(tree, "wrong number of arguments for "+ treeSymTypeMsg(fun))
 
       def ApplyWithoutArgsError(tree: Tree, fun: Tree) =
         NormalTypeError(tree, fun.tpe+" does not take parameters")
 
+      // Dynamic
       def DynamicVarArgUnsupported(tree: Tree, name: String) =
         issueNormalTypeError(tree, name+ " does not support passing a vararg parameter")
+
+      def DynamicRewriteError(tree: Tree, err: AbsTypeError) = {
+        issueTypeError(PosAndMsgTypeError(err.errPos, err.errMsg +
+            s"\nerror after rewriting to $tree\npossible cause: maybe a wrong Dynamic method signature?"))
+        setError(tree)
+      }
 
       //checkClassType
       def TypeNotAStablePrefixError(tpt: Tree, pre: Type) = {
@@ -693,7 +725,8 @@ trait ContextErrors {
               Some(EOL + stackTraceString(realex))
             }
           } catch {
-            // if the magic above goes boom, just fall back to uninformative, but better than nothing, getMessage
+            // the code above tries various tricks to detect the relevant portion of the stack trace
+            // if these tricks fail, just fall back to uninformative, but better than nothing, getMessage
             case NonFatal(ex) =>
               macroLogVerbose("got an exception when processing a macro generated exception\n" +
                               "offender = " + stackTraceString(realex) + "\n" +
@@ -714,7 +747,7 @@ trait ContextErrors {
         )
         val forgotten = (
           if (sym.isTerm) "splice when splicing this variable into a reifee"
-          else "c.AbsTypeTag annotation for this type parameter"
+          else "c.WeakTypeTag annotation for this type parameter"
         )
         macroExpansionError(expandee, template(sym.name.nameKind).format(sym.name + " " + sym.origin, forgotten))
       }
@@ -805,7 +838,6 @@ trait ContextErrors {
       }
 
       // side-effect on the tree, break the overloaded type cycle in infer
-      @inline
       private def setErrorOnLastTry(lastTry: Boolean, tree: Tree) = if (lastTry) setError(tree)
       
       def NoBestMethodAlternativeError(tree: Tree, argtpes: List[Type], pt: Type, lastTry: Boolean) = {
@@ -1096,44 +1128,42 @@ trait ContextErrors {
                                pre1: String, pre2: String, trailer: String)
                                (isView: Boolean, pt: Type, tree: Tree)(implicit context0: Context) = {
       if (!info1.tpe.isErroneous && !info2.tpe.isErroneous) {
-        val coreMsg =
-          pre1+" "+info1.sym.fullLocationString+" of type "+info1.tpe+"\n "+
-          pre2+" "+info2.sym.fullLocationString+" of type "+info2.tpe+"\n "+
-          trailer
-        val errMsg =
-          if (isView) {
-            val found = pt.typeArgs(0)
-            val req = pt.typeArgs(1)
-            def defaultExplanation =
-              "Note that implicit conversions are not applicable because they are ambiguous:\n "+
-              coreMsg+"are possible conversion functions from "+ found+" to "+req
-
-            def explanation = {
-              val sym = found.typeSymbol
-              // Explain some common situations a bit more clearly.
-              if (AnyRefClass.tpe <:< req) {
-                if (sym == AnyClass || sym == UnitClass) {
-                  "Note: " + sym.name + " is not implicitly converted to AnyRef.  You can safely\n" +
-                  "pattern match `x: AnyRef` or cast `x.asInstanceOf[AnyRef]` to do so."
-                }
-                else boxedClass get sym match {
-                  case Some(boxed)  =>
-                    "Note: an implicit exists from " + sym.fullName + " => " + boxed.fullName + ", but\n" +
-                    "methods inherited from Object are rendered ambiguous.  This is to avoid\n" +
-                    "a blanket implicit which would convert any " + sym.fullName + " to any AnyRef.\n" +
-                    "You may wish to use a type ascription: `x: " + boxed.fullName + "`."
-                  case _ =>
-                    defaultExplanation
-                }
-              }
-              else defaultExplanation
-            }
-
-            typeErrorMsg(found, req, infer.isPossiblyMissingArgs(found, req)) + "\n" + explanation
-          } else {
-            "ambiguous implicit values:\n "+coreMsg + "match expected type "+pt
+        def coreMsg =
+           s"""| $pre1 ${info1.sym.fullLocationString} of type ${info1.tpe}
+               | $pre2 ${info2.sym.fullLocationString} of type ${info2.tpe}
+               | $trailer""".stripMargin
+        def viewMsg = {
+          val found :: req :: _ = pt.typeArgs
+          def explanation = {
+            val sym = found.typeSymbol
+            // Explain some common situations a bit more clearly. Some other
+            // failures which have nothing to do with implicit conversions
+            // per se, but which manifest as implicit conversion conflicts
+            // involving Any, are further explained from foundReqMsg.
+            if (AnyRefClass.tpe <:< req) (
+              if (sym == AnyClass || sym == UnitClass) (
+                 s"""|Note: ${sym.name} is not implicitly converted to AnyRef.  You can safely
+                     |pattern match `x: AnyRef` or cast `x.asInstanceOf[AnyRef]` to do so.""".stripMargin
+              )
+              else boxedClass get sym map (boxed =>
+                 s"""|Note: an implicit exists from ${sym.fullName} => ${boxed.fullName}, but
+                     |methods inherited from Object are rendered ambiguous.  This is to avoid
+                     |a blanket implicit which would convert any ${sym.fullName} to any AnyRef.
+                     |You may wish to use a type ascription: `x: ${boxed.fullName}`.""".stripMargin
+              ) getOrElse ""
+            )
+            else
+               s"""|Note that implicit conversions are not applicable because they are ambiguous:
+                   |${coreMsg}are possible conversion functions from $found to $req""".stripMargin
           }
-        context.issueAmbiguousError(AmbiguousTypeError(tree, tree.pos, errMsg))
+          typeErrorMsg(found, req, infer.isPossiblyMissingArgs(found, req)) + (
+            if (explanation == "") "" else "\n" + explanation
+          )
+        }
+        context.issueAmbiguousError(AmbiguousTypeError(tree, tree.pos,
+          if (isView) viewMsg
+          else s"ambiguous implicit values:\n${coreMsg}match expected type $pt")
+        )
       }
     }
 
@@ -1212,7 +1242,7 @@ trait ContextErrors {
       message + suffix
     }
 
-    private def abbreviateCoreAliases(s: String): String = List("AbsTypeTag", "Expr").foldLeft(s)((res, x) => res.replace("c.universe." + x, "c." + x))
+    private def abbreviateCoreAliases(s: String): String = List("WeakTypeTag", "Expr").foldLeft(s)((res, x) => res.replace("c.universe." + x, "c." + x))
 
     private def showMeth(pss: List[List[Symbol]], restpe: Type, abbreviate: Boolean) = {
       var argsPart = (pss map (ps => ps map (_.defString) mkString ("(", ", ", ")"))).mkString
@@ -1291,7 +1321,7 @@ trait ContextErrors {
     // aXXX (e.g. aparams) => characteristics of the macro impl ("a" stands for "actual")
     // rXXX (e.g. rparams) => characteristics of a reference macro impl signature synthesized from the macro def ("r" stands for "reference")
 
-    def MacroImplNonTagImplicitParameters(params: List[Symbol]) = compatibilityError("macro implementations cannot have implicit parameters other than AbsTypeTag evidences")
+    def MacroImplNonTagImplicitParameters(params: List[Symbol]) = compatibilityError("macro implementations cannot have implicit parameters other than WeakTypeTag evidences")
 
     def MacroImplParamssMismatchError() = compatibilityError("number of parameter sections differ")
 

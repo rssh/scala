@@ -10,10 +10,10 @@ package scala.collection
 
 import generic._
 import mutable.{ Builder }
-import annotation.{tailrec, migration, bridge}
-import annotation.unchecked.{ uncheckedVariance => uV }
+import scala.annotation.{tailrec, migration, bridge}
+import scala.annotation.unchecked.{ uncheckedVariance => uV }
 import parallel.ParIterable
-import language.higherKinds
+import scala.language.higherKinds
 
 /** A template trait for traversable collections of type `Traversable[A]`.
  *
@@ -40,7 +40,7 @@ import language.higherKinds
  *  a non-strict collection class may defer computation of some of their
  *  elements until after the instance is available as a value.
  *  A typical example of a non-strict collection class is a
- *  [[scala.collection.immutable/Stream]].
+ *  [[scala.collection.immutable.Stream]].
  *  A more general class of examples are `TraversableViews`.
  *
  *  If a collection is an instance of an ordered collection class, traversing
@@ -501,7 +501,7 @@ trait TraversableLike[+A, +Repr] extends Any
     else sliceWithKnownDelta(n, Int.MaxValue, -n)
 
   def slice(from: Int, until: Int): Repr =
-    sliceWithKnownBound(math.max(from, 0), until)
+    sliceWithKnownBound(scala.math.max(from, 0), until)
 
   // Precondition: from >= 0, until > 0, builder already configured for building.
   private[this] def sliceInternal(from: Int, until: Int, b: Builder[A, Repr]): Repr = {

@@ -8,7 +8,7 @@ package typechecker
 
 import symtab.Flags._
 import scala.collection.mutable.{LinkedHashSet, Set}
-import annotation.tailrec
+import scala.annotation.tailrec
 
 /**
  *  @author  Martin Odersky
@@ -501,7 +501,7 @@ trait Contexts { self: Analyzer =>
       lastAccessCheckDetails = ""
       // Console.println("isAccessible(%s, %s, %s)".format(sym, pre, superAccess))
 
-      @inline def accessWithinLinked(ab: Symbol) = {
+      def accessWithinLinked(ab: Symbol) = {
         val linked = ab.linkedClassOfClass
         // don't have access if there is no linked class
         // (before adding the `ne NoSymbol` check, this was a no-op when linked eq NoSymbol,

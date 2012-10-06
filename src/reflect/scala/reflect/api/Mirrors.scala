@@ -1,7 +1,27 @@
 package scala.reflect
 package api
 
+/**
+ * Defines a type hierarchy for mirrors.
+ *
+ * Every universe has one or more mirrors. A mirror defines a hierarchy of symbols starting with the root package `_root_`
+ * and provides methods to locate and define classes and singleton objects in that hierarchy.
+ *
+ * On the JVM, there is a one to one correspondance between class loaders and mirrors.
+ */
 trait Mirrors { self: Universe =>
+
+  /** The base type of all mirrors of this universe.
+   *
+   *  This abstract type conforms the base interface for all mirrors defined in [[scala.reflect.api.Mirror]]
+   *  and is gradually refined in specific universes (e.g. `Mirror` of a [[scala.reflect.api.JavaUniverse]] is capable of reflection).
+   */
+  type Mirror >: Null <: scala.reflect.api.Mirror[self.type]
+
+  /** The root mirror of this universe. This mirror contains standard Scala classes and types such as `Any`, `AnyRef`, `AnyVal`,
+   *  `Nothing`, `Null`, and all classes loaded from scala-library, which are shared across all mirrors within the enclosing universe.
+   */
+  val rootMirror: Mirror
 
   type RuntimeClass >: Null
 
@@ -223,7 +243,7 @@ trait Mirrors { self: Universe =>
   }
 
   /** A mirror that reflects instances and static classes */
-  trait ReflectiveMirror extends MirrorOf[Mirrors.this.type] {
+  trait ReflectiveMirror extends scala.reflect.api.Mirror[Mirrors.this.type] {
 
     /** A reflective mirror for the given object.
      *

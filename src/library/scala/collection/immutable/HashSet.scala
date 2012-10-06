@@ -8,12 +8,13 @@
 
 
 
-package scala.collection
+package scala
+package collection
 package immutable
 
-import annotation.unchecked.{ uncheckedVariance => uV }
+import scala.annotation.unchecked.{ uncheckedVariance => uV }
 import generic._
-import collection.parallel.immutable.ParHashSet
+import scala.collection.parallel.immutable.ParHashSet
 
 /** This class implements immutable sets using a hash trie.
  *

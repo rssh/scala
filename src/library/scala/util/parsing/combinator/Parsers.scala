@@ -11,8 +11,8 @@ package scala.util.parsing.combinator
 import scala.util.parsing.input._
 import scala.collection.mutable.ListBuffer
 import scala.annotation.tailrec
-import annotation.migration
-import language.implicitConversions
+import scala.annotation.migration
+import scala.language.implicitConversions
 import scala.util.DynamicVariable
 
 // TODO: better error handling (labelling like parsec's <?>)
@@ -178,7 +178,7 @@ trait Parsers {
 
     def filterWithError(p: Nothing => Boolean, error: Nothing => String, position: Input): ParseResult[Nothing] = this
 
-    def get: Nothing = sys.error("No result when parsing failed")
+    def get: Nothing = scala.sys.error("No result when parsing failed")
   }
   /** An extractor so `NoSuccess(msg, next)` can be used in matches. */
   object NoSuccess {

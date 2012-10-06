@@ -11,13 +11,13 @@
 package scala.tools.nsc
 package typechecker
 
-import annotation.tailrec
+import scala.annotation.tailrec
 import scala.collection.{ mutable, immutable }
 import mutable.{ LinkedHashMap, ListBuffer }
 import scala.util.matching.Regex
 import symtab.Flags._
 import scala.reflect.internal.util.Statistics
-import language.implicitConversions
+import scala.language.implicitConversions
 
 /** This trait provides methods to find various kinds of implicits.
  *
@@ -132,7 +132,7 @@ trait Implicits {
   }
 
   /* Map a polytype to one in which all type parameters and argument-dependent types are replaced by wildcards.
-   * Consider `implicit def b(implicit x: A): x.T = error("")`. We need to approximate DebruijnIndex types
+   * Consider `implicit def b(implicit x: A): x.T = error("")`. We need to approximate debruijn index types
    * when checking whether `b` is a valid implicit, as we haven't even searched a value for the implicit arg `x`,
    * so we have to approximate (otherwise it is excluded a priori).
    */
@@ -593,7 +593,7 @@ trait Implicits {
             typed1(itree, EXPRmode, wildPt)
 
         if (context.hasErrors)
-          return fail("typed implicit %s has errors".format(info.sym.fullLocationString))
+          return fail(context.errBuffer.head.errMsg)
 
         if (Statistics.canEnable) Statistics.incCounter(typedImplicits)
 
@@ -615,7 +615,7 @@ trait Implicits {
         }
 
         if (context.hasErrors)
-          fail("hasMatchingSymbol reported threw error(s)")
+          fail("hasMatchingSymbol reported error: " + context.errBuffer.head.errMsg)
         else if (isLocal && !hasMatchingSymbol(itree1))
           fail("candidate implicit %s is shadowed by %s".format(
             info.sym.fullLocationString, itree1.symbol.fullLocationString))
@@ -639,7 +639,7 @@ trait Implicits {
             // #2421: check that we correctly instantiated type parameters outside of the implicit tree:
             checkBounds(itree2, NoPrefix, NoSymbol, undetParams, targs, "inferred ")
             if (context.hasErrors)
-              return fail("type parameters weren't correctly instantiated outside of the implicit tree")
+              return fail("type parameters weren't correctly instantiated outside of the implicit tree: " + context.errBuffer.head.errMsg)
 
             // filter out failures from type inference, don't want to remove them from undetParams!
             // we must be conservative in leaving type params in undetparams
@@ -675,7 +675,7 @@ trait Implicits {
             }
 
             if (context.hasErrors)
-              fail("typing TypeApply reported errors for the implicit tree")
+              fail("typing TypeApply reported errors for the implicit tree: " + context.errBuffer.head.errMsg)
             else {
               val result = new SearchResult(itree2, subst)
               if (Statistics.canEnable) Statistics.incCounter(foundImplicits)
@@ -1150,9 +1150,9 @@ trait Implicits {
 
     private def TagSymbols =  TagMaterializers.keySet
     private val TagMaterializers = Map[Symbol, Symbol](
-      ClassTagClass   -> MacroInternal_materializeClassTag,
-      AbsTypeTagClass -> MacroInternal_materializeAbsTypeTag,
-      TypeTagClass    -> MacroInternal_materializeTypeTag
+      ClassTagClass    -> materializeClassTag,
+      WeakTypeTagClass -> materializeWeakTypeTag,
+      TypeTagClass     -> materializeTypeTag
     )
 
     /** Creates a tree will produce a tag of the requested flavor.
@@ -1183,7 +1183,7 @@ trait Implicits {
 
       val prefix = (
         // ClassTags are not path-dependent, so their materializer doesn't care about prefixes
-        if (tagClass eq ClassTagClass) gen.mkBasisUniverseRef
+        if (tagClass eq ClassTagClass) EmptyTree
         else pre match {
           case SingleType(prePre, preSym) =>
             gen.mkAttributedRef(prePre, preSym) setType pre
@@ -1205,7 +1205,7 @@ trait Implicits {
         }
       )
       // todo. migrate hardcoded materialization in Implicits to corresponding implicit macros
-      var materializer = atPos(pos.focus)(gen.mkMethodCall(TagMaterializers(tagClass), List(tp), List(prefix)))
+      var materializer = atPos(pos.focus)(gen.mkMethodCall(TagMaterializers(tagClass), List(tp), if (prefix != EmptyTree) List(prefix) else List()))
       if (settings.XlogImplicits.value) println("materializing requested %s.%s[%s] using %s".format(pre, tagClass.name, tp, materializer))
       if (context.macrosEnabled) success(materializer)
       // don't call `failure` here. if macros are disabled, we just fail silently
@@ -1217,14 +1217,14 @@ trait Implicits {
     private val ManifestSymbols = Set[Symbol](PartialManifestClass, FullManifestClass, OptManifestClass)
 
     /** Creates a tree that calls the relevant factory method in object
-      * reflect.Manifest for type 'tp'. An EmptyTree is returned if
+      * scala.reflect.Manifest for type 'tp'. An EmptyTree is returned if
       * no manifest is found. todo: make this instantiate take type params as well?
       */
     private def manifestOfType(tp: Type, flavor: Symbol): SearchResult = {
       val full = flavor == FullManifestClass
       val opt = flavor == OptManifestClass
 
-      /** Creates a tree that calls the factory method called constructor in object reflect.Manifest */
+      /** Creates a tree that calls the factory method called constructor in object scala.reflect.Manifest */
       def manifestFactoryCall(constructor: String, tparg: Type, args: Tree*): Tree =
         if (args contains EmptyTree) EmptyTree
         else typedPos(tree.pos.focus) {
@@ -1334,7 +1334,7 @@ trait Implicits {
     def wrapResult(tree: Tree): SearchResult =
       if (tree == EmptyTree) SearchFailure else new SearchResult(tree, EmptyTreeTypeSubstituter)
 
-    /** Materializes implicits of magic types (currently, manifests and tags).
+    /** Materializes implicits of predefined types (currently, manifests and tags).
      *  Will be replaced by implicit macros once we fix them.
      */
     private def materializeImplicit(pt: Type): SearchResult =
@@ -1472,7 +1472,7 @@ trait Implicits {
         interpolate(msg, Map((typeParamNames zip typeArgs): _*)) // TODO: give access to the name and type of the implicit argument, etc?
 
       def validate: Option[String] = {
-        import scala.util.matching.Regex; import collection.breakOut
+        import scala.util.matching.Regex; import scala.collection.breakOut
         // is there a shorter way to avoid the intermediate toList?
         val refs = """\$\{([^}]+)\}""".r.findAllIn(msg).matchData.map(_ group 1).toSet
         val decls = typeParamNames.toSet
@@ -1492,7 +1492,7 @@ trait Implicits {
 
 object ImplicitsStats {
 
-  import reflect.internal.TypesStats._
+  import scala.reflect.internal.TypesStats._
 
   val rawTypeImpl         = Statistics.newSubCounter ("  of which in implicits", rawTypeCount)
   val subtypeImpl         = Statistics.newSubCounter("  of which in implicit", subtypeCount)

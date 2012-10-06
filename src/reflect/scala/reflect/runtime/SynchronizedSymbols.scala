@@ -1,7 +1,7 @@
 package scala.reflect
 package runtime
 
-import internal.Flags.DEFERRED
+import scala.reflect.io.AbstractFile
 
 trait SynchronizedSymbols extends internal.Symbols { self: SymbolTable =>
 
@@ -14,11 +14,11 @@ trait SynchronizedSymbols extends internal.Symbols { self: SymbolTable =>
   override def connectModuleToClass(m: ModuleSymbol, moduleClass: ClassSymbol): ModuleSymbol =
     synchronized { super.connectModuleToClass(m, moduleClass) }
 
-  override def newFreeTermSymbol(name: TermName, info: Type, value: => Any, flags: Long = 0L, origin: String = null): FreeTermSymbol =
-    new FreeTermSymbol(name, value, origin) with SynchronizedTermSymbol initFlags flags setInfo info
+  override def newFreeTermSymbol(name: TermName, value: => Any, flags: Long = 0L, origin: String = null): FreeTermSymbol =
+    new FreeTermSymbol(name, value, origin) with SynchronizedTermSymbol initFlags flags
 
-  override def newFreeTypeSymbol(name: TypeName, info: Type, value: => Any, flags: Long = 0L, origin: String = null): FreeTypeSymbol =
-    new FreeTypeSymbol(name, value, origin) with SynchronizedTypeSymbol initFlags flags setInfo info
+  override def newFreeTypeSymbol(name: TypeName, flags: Long = 0L, origin: String = null): FreeTypeSymbol =
+    new FreeTypeSymbol(name, origin) with SynchronizedTypeSymbol initFlags flags
 
   override protected def makeNoSymbol: NoSymbol = new NoSymbol with SynchronizedSymbol
 
@@ -123,7 +123,7 @@ trait SynchronizedSymbols extends internal.Symbols { self: SymbolTable =>
 
   trait SynchronizedClassSymbol extends ClassSymbol with SynchronizedTypeSymbol {
     override def associatedFile = synchronized { super.associatedFile }
-    override def associatedFile_=(f: AbstractFileType) = synchronized { super.associatedFile_=(f) }
+    override def associatedFile_=(f: AbstractFile) = synchronized { super.associatedFile_=(f) }
     override def thisSym: Symbol = synchronized { super.thisSym }
     override def thisType: Type = synchronized { super.thisType }
     override def typeOfThis: Type = synchronized { super.typeOfThis }

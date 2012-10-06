@@ -14,13 +14,13 @@ import java.lang.Double.longBitsToDouble
 import Flags._
 import PickleFormat._
 import scala.collection.{ mutable, immutable }
-import collection.mutable.ListBuffer
-import annotation.switch
+import scala.collection.mutable.ListBuffer
+import scala.annotation.switch
 
 /** @author Martin Odersky
  *  @version 1.0
  */
-abstract class UnPickler /*extends reflect.generic.UnPickler*/ {
+abstract class UnPickler /*extends scala.reflect.generic.UnPickler*/ {
   val global: SymbolTable
   import global._
 
@@ -467,7 +467,7 @@ abstract class UnPickler /*extends reflect.generic.UnPickler*/ {
     private def readArrayAnnot() = {
       readByte() // skip the `annotargarray` tag
       val end = readNat() + readIndex
-      until(end, () => readClassfileAnnotArg(readNat())).toArray(ClassfileAnnotArgTag)
+      until(end, () => readClassfileAnnotArg(readNat())).toArray(JavaArgumentTag)
     }
     protected def readClassfileAnnotArg(i: Int): ClassfileAnnotArg = bytes(index(i)) match {
       case ANNOTINFO     => NestedAnnotArg(at(i, readAnnotation))
@@ -881,7 +881,7 @@ abstract class UnPickler /*extends reflect.generic.UnPickler*/ {
     }
 
     /** A lazy type which when completed returns type at index `i`. */
-    private class LazyTypeRef(i: Int) extends LazyType {
+    private class LazyTypeRef(i: Int) extends LazyType with FlagAgnosticCompleter {
       private val definedAtRunId = currentRunId
       private val p = phase
       override def complete(sym: Symbol) : Unit = try {

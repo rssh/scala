@@ -7,8 +7,7 @@ package scala.reflect
 package internal
 
 import Flags._
-import base.Attachments
-import collection.mutable.{ListBuffer, LinkedHashSet}
+import scala.collection.mutable.{ListBuffer, LinkedHashSet}
 import util.Statistics
 
 trait Trees extends api.Trees { self: SymbolTable =>
@@ -21,10 +20,10 @@ trait Trees extends api.Trees { self: SymbolTable =>
 
     if (Statistics.canEnable) Statistics.incCounter(TreesStats.nodeByType, getClass)
 
-    @inline final override def pos: Position = rawatt.pos
+    final override def pos: Position = rawatt.pos
 
     private[this] var rawtpe: Type = _
-    @inline final def tpe = rawtpe
+    final def tpe = rawtpe
     def tpe_=(t: Type) = rawtpe = t
     def setType(tp: Type): this.type = { rawtpe = tp; this }
     def defineType(tp: Type): this.type = setType(tp)
@@ -32,7 +31,8 @@ trait Trees extends api.Trees { self: SymbolTable =>
     def symbol: Symbol = null //!!!OPT!!! symbol is about 3% of hot compile times -- megamorphic dispatch?
     def symbol_=(sym: Symbol) { throw new UnsupportedOperationException("symbol_= inapplicable for " + this) }
     def setSymbol(sym: Symbol): this.type = { symbol = sym; this }
-    def hasSymbol = false
+    def hasSymbolField = false
+    @deprecated("Use hasSymbolField", "2.11.0") def hasSymbol = hasSymbolField
 
     def isDef = false
 
@@ -63,7 +63,7 @@ trait Trees extends api.Trees { self: SymbolTable =>
     private[scala] def copyAttrs(tree: Tree): this.type = {
       rawatt = tree.rawatt
       tpe = tree.tpe
-      if (hasSymbol) symbol = tree.symbol
+      if (hasSymbolField) symbol = tree.symbol
       this
     }
 
@@ -137,7 +137,7 @@ trait Trees extends api.Trees { self: SymbolTable =>
     override def freeTypes: List[FreeTypeSymbol] = freeSyms[FreeTypeSymbol](_.isFreeType, _.typeSymbol)
 
     private def freeSyms[S <: Symbol](isFree: Symbol => Boolean, symOfType: Type => Symbol): List[S] = {
-      val s = collection.mutable.LinkedHashSet[S]()
+      val s = scala.collection.mutable.LinkedHashSet[S]()
       def addIfFree(sym: Symbol): Unit = if (sym != null && isFree(sym)) s += sym.asInstanceOf[S]
       for (t <- this) {
         addIfFree(t.symbol)
@@ -211,7 +211,7 @@ trait Trees extends api.Trees { self: SymbolTable =>
   trait TypTree extends Tree with TypTreeApi
 
   abstract class SymTree extends Tree with SymTreeContextApi {
-    override def hasSymbol = true
+    override def hasSymbolField = true
     override var symbol: Symbol = NoSymbol
   }
 
@@ -328,9 +328,23 @@ trait Trees extends api.Trees { self: SymbolTable =>
        extends TermTree with UnApplyApi
   object UnApply extends UnApplyExtractor
 
-  case class ArrayValue(elemtpt: Tree, elems: List[Tree])
-       extends TermTree with ArrayValueApi
-  object ArrayValue extends ArrayValueExtractor
+  /** An array of expressions. This AST node needs to be translated in backend.
+   *  It is used to pass arguments to vararg arguments.
+   *  Introduced by compiler phase uncurry.
+   *
+   *  This AST node does not have direct correspondence to Scala code,
+   *  and is used to pass arguments to vararg arguments. For instance:
+   *
+   *    printf("%s%d", foo, 42)
+   *
+   *  Is translated to after compiler phase uncurry to:
+   *
+   *    Apply(
+   *      Ident("printf"),
+   *      Literal("%s%d"),
+   *      ArrayValue(<Any>, List(Ident("foo"), Literal(42))))
+   */
+  case class ArrayValue(elemtpt: Tree, elems: List[Tree]) extends TermTree
 
   case class Function(vparams: List[ValDef], body: Tree)
        extends SymTree with TermTree with FunctionApi
@@ -400,9 +414,17 @@ trait Trees extends api.Trees { self: SymbolTable =>
 
   def ApplyConstructor(tpt: Tree, args: List[Tree]) = Apply(Select(New(tpt), nme.CONSTRUCTOR), args)
 
-  case class ApplyDynamic(qual: Tree, args: List[Tree])
-       extends SymTree with TermTree with ApplyDynamicApi
-  object ApplyDynamic extends ApplyDynamicExtractor
+  // Creates a constructor call from the constructor symbol.  This is
+  // to avoid winding up with an OverloadedType for the constructor call.
+  def NewFromConstructor(constructor: Symbol, args: Tree*) = {
+    assert(constructor.isConstructor, constructor)
+    val instance = New(TypeTree(constructor.owner.tpe))
+    val init     = Select(instance, nme.CONSTRUCTOR) setSymbol constructor
+
+    Apply(init, args.toList)
+  }
+
+  case class ApplyDynamic(qual: Tree, args: List[Tree]) extends SymTree with TermTree
 
   case class Super(qual: Tree, mix: TypeName) extends TermTree with SuperApi {
     override def symbol: Symbol = qual.symbol
@@ -496,7 +518,13 @@ trait Trees extends api.Trees { self: SymbolTable =>
 
   def TypeTree(tp: Type): TypeTree = TypeTree() setType tp
 
-  class StrictTreeCopier extends TreeCopierOps {
+  override type TreeCopier <: InternalTreeCopierOps
+  abstract class InternalTreeCopierOps extends TreeCopierOps {
+    def ApplyDynamic(tree: Tree, qual: Tree, args: List[Tree]): ApplyDynamic
+    def ArrayValue(tree: Tree, elemtpt: Tree, trees: List[Tree]): ArrayValue
+  }
+
+  class StrictTreeCopier extends InternalTreeCopierOps {
     def ClassDef(tree: Tree, mods: Modifiers, name: Name, tparams: List[TypeDef], impl: Template) =
       new ClassDef(mods, name.toTypeName, tparams, impl).copyAttrs(tree)
     def PackageDef(tree: Tree, pid: RefTree, stats: List[Tree]) =
@@ -590,7 +618,7 @@ trait Trees extends api.Trees { self: SymbolTable =>
       new ExistentialTypeTree(tpt, whereClauses).copyAttrs(tree)
   }
 
-  class LazyTreeCopier extends TreeCopierOps {
+  class LazyTreeCopier extends InternalTreeCopierOps {
     val treeCopy: TreeCopier = newStrictTreeCopier
     def ClassDef(tree: Tree, mods: Modifiers, name: Name, tparams: List[TypeDef], impl: Template) = tree match {
       case t @ ClassDef(mods0, name0, tparams0, impl0)
@@ -1385,7 +1413,7 @@ trait Trees extends api.Trees { self: SymbolTable =>
       }
 
       if (tree.tpe ne null) tree.tpe = symSubst(tree.tpe)
-      if (tree.hasSymbol) {
+      if (tree.hasSymbolField) {
         subst(from, to)
         tree match {
           case Ident(name0) if tree.symbol != NoSymbol =>
@@ -1571,7 +1599,6 @@ trait Trees extends api.Trees { self: SymbolTable =>
   implicit val StarTag = ClassTag[Star](classOf[Star])
   implicit val BindTag = ClassTag[Bind](classOf[Bind])
   implicit val UnApplyTag = ClassTag[UnApply](classOf[UnApply])
-  implicit val ArrayValueTag = ClassTag[ArrayValue](classOf[ArrayValue])
   implicit val FunctionTag = ClassTag[Function](classOf[Function])
   implicit val AssignTag = ClassTag[Assign](classOf[Assign])
   implicit val AssignOrNamedArgTag = ClassTag[AssignOrNamedArg](classOf[AssignOrNamedArg])
@@ -1585,7 +1612,6 @@ trait Trees extends api.Trees { self: SymbolTable =>
   implicit val GenericApplyTag = ClassTag[GenericApply](classOf[GenericApply])
   implicit val TypeApplyTag = ClassTag[TypeApply](classOf[TypeApply])
   implicit val ApplyTag = ClassTag[Apply](classOf[Apply])
-  implicit val ApplyDynamicTag = ClassTag[ApplyDynamic](classOf[ApplyDynamic])
   implicit val SuperTag = ClassTag[Super](classOf[Super])
   implicit val ThisTag = ClassTag[This](classOf[This])
   implicit val SelectTag = ClassTag[Select](classOf[Select])

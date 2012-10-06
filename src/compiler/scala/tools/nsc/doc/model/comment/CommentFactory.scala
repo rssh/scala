@@ -13,7 +13,7 @@ import scala.collection._
 import scala.util.matching.Regex
 import scala.annotation.switch
 import scala.reflect.internal.util.{NoPosition, Position}
-import language.postfixOps
+import scala.language.postfixOps
 
 /** The comment parser transforms raw comment strings into `Comment` objects.
   * Call `parse` to run the parser. Note that the parser is stateless and
@@ -147,7 +147,7 @@ trait CommentFactory { thisFactory: ModelFactory with CommentFactory with Member
       case (group, body) =>
         try {
           body match {
-            case Body(List(Paragraph(Chain(List(Summary(Text(prio))))))) => List(group -> prio.toInt)
+            case Body(List(Paragraph(Chain(List(Summary(Text(prio))))))) => List(group -> prio.trim.toInt)
             case _                                                       => List()
           }
         } catch {
@@ -760,7 +760,7 @@ trait CommentFactory { thisFactory: ModelFactory with CommentFactory with Member
     }
 
     def link(): Inline = {
-      val SchemeUri = """([^:]+:.*)""".r
+      val SchemeUri = """([a-z]+:.*)""".r
       jump("[[")
       var parens = 1
       readUntil { parens += 1; !check("[") }

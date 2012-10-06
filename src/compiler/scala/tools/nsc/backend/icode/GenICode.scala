@@ -13,7 +13,7 @@ import scala.collection.mutable.{ ListBuffer, Buffer }
 import scala.tools.nsc.symtab._
 import scala.annotation.switch
 import PartialFunction._
-import language.postfixOps
+import scala.language.postfixOps
 
 /** This class ...
  *
@@ -123,42 +123,26 @@ abstract class GenICode extends SubComponent  {
         m.native = m.symbol.hasAnnotation(definitions.NativeAttr)
 
         if (!m.isAbstractMethod && !m.native) {
-          if (m.symbol.isAccessor && m.symbol.accessed.hasStaticAnnotation) {
-            // in companion object accessors to @static fields, we access the static field directly
-            val hostClass = m.symbol.owner.companionClass
-            val staticfield = hostClass.info.findMember(m.symbol.accessed.name, NoFlags, NoFlags, false)
-            
-            if (m.symbol.isGetter) {
-              ctx1.bb.emit(LOAD_FIELD(staticfield, true) setHostClass hostClass, tree.pos)
-              ctx1.bb.closeWith(RETURN(m.returnType))
-            } else if (m.symbol.isSetter) {
-              ctx1.bb.emit(LOAD_LOCAL(m.locals.head), tree.pos)
-              ctx1.bb.emit(STORE_FIELD(staticfield, true), tree.pos)
-              ctx1.bb.closeWith(RETURN(m.returnType))
-            } else assert(false, "unreachable")
-          } else {
-            ctx1 = genLoad(rhs, ctx1, m.returnType);
+          ctx1 = genLoad(rhs, ctx1, m.returnType);
 
-            // reverse the order of the local variables, to match the source-order
-            m.locals = m.locals.reverse
+          // reverse the order of the local variables, to match the source-order
+          m.locals = m.locals.reverse
 
-            rhs match {
-              case Block(_, Return(_)) => ()
-              case Return(_) => ()
-              case EmptyTree =>
-                globalError("Concrete method has no definition: " + tree + (
-                  if (settings.debug.value) "(found: " + m.symbol.owner.info.decls.toList.mkString(", ") + ")"
-                  else "")
-                )
-              case _ =>
-                if (ctx1.bb.isEmpty)
-                  ctx1.bb.closeWith(RETURN(m.returnType), rhs.pos)
-                else
-                  ctx1.bb.closeWith(RETURN(m.returnType))
-            }
-            if (!ctx1.bb.closed) ctx1.bb.close
-            prune(ctx1.method)
+          rhs match {
+            case Block(_, Return(_)) => ()
+            case Return(_) => ()
+            case EmptyTree =>
+              globalError("Concrete method has no definition: " + tree + (
+                if (settings.debug.value) "(found: " + m.symbol.owner.info.decls.toList.mkString(", ") + ")"
+                else "")
+              )
+            case _ => if (ctx1.bb.isEmpty)
+              ctx1.bb.closeWith(RETURN(m.returnType), rhs.pos)
+            else
+              ctx1.bb.closeWith(RETURN(m.returnType))
           }
+          if (!ctx1.bb.closed) ctx1.bb.close
+          prune(ctx1.method)
         } else
           ctx1.method.setCode(NoCode)
         ctx1
@@ -661,16 +645,16 @@ abstract class GenICode extends SubComponent  {
             } else {
               val sym = tree.symbol
               val local = ctx.method.addLocal(new Local(sym, toTypeKind(sym.info), false))
-              
+
               if (rhs == EmptyTree) {
                 debuglog("Uninitialized variable " + tree + " at: " + (tree.pos));
                 ctx.bb.emit(getZeroOf(local.kind))
               }
-              
+
               var ctx1 = ctx
               if (rhs != EmptyTree)
                 ctx1 = genLoad(rhs, ctx, local.kind);
-              
+
               ctx1.bb.emit(STORE_LOCAL(local), tree.pos)
               ctx1.scope.add(local)
               ctx1.bb.emit(SCOPE_ENTER(local))
@@ -729,10 +713,10 @@ abstract class GenICode extends SubComponent  {
             ctx1.bb.enterIgnoreMode
             generatedType = expectedType
             ctx1
-          }  
+          }
           genLoadReturn
 
-        case t @ Try(_, _, _) => 
+        case t @ Try(_, _, _) =>
           genLoadTry(t, ctx, generatedType = _)
 
         case Throw(expr) =>
@@ -752,7 +736,7 @@ abstract class GenICode extends SubComponent  {
               case Object_asInstanceOf  => true
               case _                    => abort("Unexpected type application " + fun + "[sym: " + sym.fullName + "]" + " in: " + tree)
             }
-            
+
             val Select(obj, _) = fun
             val l = toTypeKind(obj.tpe)
             val r = toTypeKind(targs.head.tpe)
@@ -796,7 +780,7 @@ abstract class GenICode extends SubComponent  {
 
             ctx.bb.emit(THIS(ctx.clazz.symbol), tree.pos)
             val ctx1 = genLoadArguments(args, fun.symbol.info.paramTypes, ctx)
-            
+
             ctx1.bb.emit(CALL_METHOD(fun.symbol, invokeStyle), tree.pos)
             generatedType =
               if (fun.symbol.isConstructor) UNIT
@@ -814,7 +798,7 @@ abstract class GenICode extends SubComponent  {
             val ctor = fun.symbol
             debugassert(ctor.isClassConstructor,
                         "'new' call to non-constructor: " + ctor.name)
-            
+
             generatedType = toTypeKind(tpt.tpe)
             debugassert(generatedType.isReferenceType || generatedType.isArrayType,
                         "Non reference type cannot be instantiated: " + generatedType)
@@ -860,7 +844,7 @@ abstract class GenICode extends SubComponent  {
                   ctx1
                 }
                 ctx2
-              
+
               case _ =>
                 abort("Cannot instantiate " + tpt + " of kind: " + generatedType)
             }
@@ -900,51 +884,10 @@ abstract class GenICode extends SubComponent  {
           generatedType = toTypeKind(fun.symbol.tpe.resultType)
           ctx1
 
-        case app @ Apply(fun @ Select(qual, _), args)
-        if !ctx.method.symbol.isStaticConstructor 
-        && fun.symbol.isAccessor && fun.symbol.accessed.hasStaticAnnotation
-        && qual.tpe.typeSymbol.orElse(fun.symbol.owner).companionClass != NoSymbol =>
-          // bypass the accessor to the companion object and load the static field directly
-          // this bypass is not done:
-          // - if the static intializer for the static field itself
-          // - if there is no companion class of the object owner - this happens in the REPL
-          def genLoadApply5 = {
-          val sym = fun.symbol
-          generatedType = toTypeKind(sym.accessed.info)
-          val hostOwner = qual.tpe.typeSymbol.orElse(sym.owner)
-          val hostClass = hostOwner.companionClass
-          val staticfield = hostClass.info.findMember(sym.accessed.name, NoFlags, NoFlags, false) orElse {
-            if (!currentRun.compiles(hostOwner)) {
-              // hostOwner was separately compiled -- the static field symbol needs to be recreated in hostClass
-              import Flags._
-              debuglog("recreating sym.accessed.name: " + sym.accessed.name)
-              val objectfield = hostOwner.info.findMember(sym.accessed.name, NoFlags, NoFlags, false)
-              val staticfield = hostClass.newVariable(newTermName(sym.accessed.name.toString), tree.pos, STATIC | SYNTHETIC | FINAL) setInfo objectfield.tpe
-              staticfield.addAnnotation(definitions.StaticClass)
-              hostClass.info.decls enter staticfield
-              staticfield
-            } else NoSymbol
-          }
-
-          if (sym.isGetter) {
-            ctx.bb.emit(LOAD_FIELD(staticfield, true) setHostClass hostClass, tree.pos)
-            ctx
-          } else if (sym.isSetter) {
-            val ctx1 = genLoadArguments(args, sym.info.paramTypes, ctx)
-            ctx1.bb.emit(STORE_FIELD(staticfield, true), tree.pos)
-            ctx1.bb.emit(CONSTANT(Constant(false)), tree.pos)
-            ctx1
-          } else {
-            assert(false, "supposedly unreachable")
-            ctx
-          }
-          }
-          genLoadApply5
-        
         case app @ Apply(fun, args) =>
           def genLoadApply6 = {
             val sym = fun.symbol
-          
+
             if (sym.isLabel) {  // jump to a label
               val label = ctx.labels.getOrElse(sym, {
                 // it is a forward jump, scan for labels
@@ -981,7 +924,7 @@ abstract class GenICode extends SubComponent  {
                   Static(true)
                 else
                   Dynamic
-              
+
               var ctx1 =
                 if (invokeStyle.hasInstance) {
                   if (forMSIL && !(invokeStyle.isInstanceOf[SuperCall]) && msil_IsValuetypeInstMethod(sym))
@@ -989,24 +932,26 @@ abstract class GenICode extends SubComponent  {
                   else
                     genLoadQualifier(fun, ctx)
                 } else ctx
-              
+
               ctx1 = genLoadArguments(args, sym.info.paramTypes, ctx1)
               val cm = CALL_METHOD(sym, invokeStyle)
-              
+
               /** In a couple cases, squirrel away a little extra information in the
                *  CALL_METHOD for use by GenJVM.
                */
               fun match {
                 case Select(qual, _) =>
                   val qualSym = findHostClass(qual.tpe, sym)
-                  
-                  if (qualSym == ArrayClass) cm setTargetTypeKind toTypeKind(qual.tpe)
-                  else cm setHostClass qualSym
-                  
-                  log(
-                    if (qualSym == ArrayClass) "Stored target type kind " + toTypeKind(qual.tpe) + " for " + sym.fullName
-                    else s"Set more precise host class for ${sym.fullName} hostClass: $qualSym"
-                  )
+                  if (qualSym == ArrayClass) {
+                    val kind = toTypeKind(qual.tpe)
+                    cm setTargetTypeKind kind
+                    log(s"Stored target type kind for {$sym.fullName} as $kind")
+                  }
+                  else {
+                    cm setHostClass qualSym
+                    if (qual.tpe.typeSymbol != qualSym)
+                      log(s"Precisified host class for $sym from ${qual.tpe.typeSymbol.fullName} to ${qualSym.fullName}")
+                  }
                 case _ =>
               }
               ctx1.bb.emit(cm, tree.pos)
@@ -1142,7 +1087,7 @@ abstract class GenICode extends SubComponent  {
             val elmKind = toTypeKind(tpt.tpe)
             generatedType = ARRAY(elmKind)
             val elems = _elems.toIndexedSeq
-            
+
             ctx1.bb.emit(CONSTANT(new Constant(elems.length)), tree.pos)
             ctx1.bb.emit(CREATE_ARRAY(elmKind, 1))
             // inline array literals
@@ -1165,7 +1110,7 @@ abstract class GenICode extends SubComponent  {
             val afterCtx = ctx1.newBlock
             var caseCtx: Context  = null
             generatedType = toTypeKind(tree.tpe)
-          
+
             var targets: List[BasicBlock] = Nil
             var tags: List[Int] = Nil
             var default: BasicBlock = afterCtx.bb
@@ -1192,7 +1137,7 @@ abstract class GenICode extends SubComponent  {
                   abort("Invalid case statement in switch-like pattern match: " +
                         tree + " at: " + (tree.pos))
               }
-              
+
               caseCtx = genLoad(body, tmpCtx, generatedType)
               // close the block unless it's already been closed by the body, which closes the block if it ends in a jump (which is emitted to have alternatives share their body)
               caseCtx.bb.closeWith(JUMP(afterCtx.bb) setPos caze.pos)
@@ -1220,34 +1165,30 @@ abstract class GenICode extends SubComponent  {
       resCtx
     }
 
-    private def adapt(from: TypeKind, to: TypeKind, ctx: Context, pos: Position): Unit = {
-      if (!(from <:< to) && !(from == NullReference && to == NothingReference)) {
-        to match {
-          case UNIT =>
-            ctx.bb.emit(DROP(from), pos)
-            debuglog("Dropped an " + from);
+    private def adapt(from: TypeKind, to: TypeKind, ctx: Context, pos: Position) {
+      // An awful lot of bugs explode here - let's leave ourselves more clues.
+      // A typical example is an overloaded type assigned after typer.
+      log(s"GenICode#adapt($from, $to, $ctx, $pos)")
 
-          case _ =>
-            debugassert(from != UNIT, "Can't convert from UNIT to " + to + " at: " + pos)
-            assert(!from.isReferenceType && !to.isReferenceType,
-              "type error: can't convert from " + from + " to " + to +" in unit " + unit.source + " at " + pos)
-
-            ctx.bb.emit(CALL_PRIMITIVE(Conversion(from, to)), pos)
-        }
-      } else if (from == NothingReference) {
-        ctx.bb.emit(THROW(ThrowableClass))
-        ctx.bb.enterIgnoreMode
-      } else if (from == NullReference) {
-        ctx.bb.emit(DROP(from))
-        ctx.bb.emit(CONSTANT(Constant(null)))
+      val conforms = (from <:< to) || (from == NullReference && to == NothingReference)
+      def coerce(from: TypeKind, to: TypeKind) = ctx.bb.emit(CALL_PRIMITIVE(Conversion(from, to)), pos)
+      def checkAssertions() {
+        def msg = s"Can't convert from $from to $to in unit ${unit.source} at $pos"
+        debugassert(from != UNIT, msg)
+        assert(!from.isReferenceType && !to.isReferenceType, msg)
       }
-      else if (from == ThrowableReference && !(ThrowableClass.tpe <:< to.toType)) {
-        log("Inserted check-cast on throwable to " + to + " at " + pos)
-        ctx.bb.emit(CHECK_CAST(to))
+      if (conforms) from match {
+        case NothingReference                                          => ctx.bb.emit(THROW(ThrowableClass)) ; ctx.bb.enterIgnoreMode
+        case NullReference                                             => ctx.bb.emit(Seq(DROP(from), CONSTANT(Constant(null))))
+        case ThrowableReference if !(ThrowableClass.tpe <:< to.toType) => ctx.bb.emit(CHECK_CAST(to)) // downcast throwables
+        case _                                                         =>
+          // widen subrange types
+          if (from.isIntSizedType && to == LONG)
+            coerce(INT, LONG)
       }
-      else (from, to) match  {
-        case (BYTE, LONG) | (SHORT, LONG) | (CHAR, LONG) | (INT, LONG) => ctx.bb.emit(CALL_PRIMITIVE(Conversion(INT, LONG)))
-        case _ => ()
+      else to match {
+        case UNIT => ctx.bb.emit(DROP(from), pos)           // value discarding
+        case _    => checkAssertions() ; coerce(from, to)   // other primitive coercions
       }
     }
 
@@ -1730,12 +1671,8 @@ abstract class GenICode extends SubComponent  {
        *  backend emits them as static).
        *  No code is needed for this module symbol.
        */
-      for (
-        f <- cls.info.decls;
-        if !f.isMethod && f.isTerm && !f.isModule && !f.isImport && !(f.owner.isModuleClass && f.hasStaticAnnotation)
-      ) {
+      for (f <- cls.info.decls ; if !f.isMethod && f.isTerm && !f.isModule && !f.isImport)
         ctx.clazz addField new IField(f)
-      }
     }
 
     /**
@@ -1967,18 +1904,8 @@ abstract class GenICode extends SubComponent  {
 
       var handlerCount = 0
 
-      override def toString(): String = {
-        val buf = new StringBuilder()
-        buf.append("\tpackage: ").append(packg).append('\n')
-        buf.append("\tclazz: ").append(clazz).append('\n')
-        buf.append("\tmethod: ").append(method).append('\n')
-        buf.append("\tbb: ").append(bb).append('\n')
-        buf.append("\tlabels: ").append(labels).append('\n')
-        buf.append("\texception handlers: ").append(handlers).append('\n')
-        buf.append("\tcleanups: ").append(cleanups).append('\n')
-        buf.append("\tscope: ").append(scope).append('\n')
-        buf.toString()
-      }
+      override def toString =
+        s"package $packg { class $clazz { def $method { bb=$bb } } }"
 
       def loadException(ctx: Context, exh: ExceptionHandler, pos: Position) = {
         debuglog("Emitting LOAD_EXCEPTION for class: " + exh.loadExceptionClass)

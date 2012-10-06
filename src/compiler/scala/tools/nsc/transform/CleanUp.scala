@@ -9,7 +9,7 @@ package transform
 import symtab._
 import Flags._
 import scala.collection._
-import language.postfixOps
+import scala.language.postfixOps
 
 abstract class CleanUp extends Transform with ast.TreeDSL {
   import global._
@@ -23,12 +23,9 @@ abstract class CleanUp extends Transform with ast.TreeDSL {
     new CleanUpTransformer(unit)
 
   class CleanUpTransformer(unit: CompilationUnit) extends Transformer {
-    private val newStaticMembers       = mutable.Buffer.empty[Tree]
-    private val newStaticInits         = mutable.Buffer.empty[Tree]
-    private val symbolsStoredAsStatic  = mutable.Map.empty[String, Symbol]
-    private val staticBodies           = mutable.Map.empty[(Symbol, Symbol), Tree]
-    private val syntheticClasses       = mutable.Map.empty[Symbol, mutable.Set[Tree]] // package and trees
-    private val classNames             = mutable.Map.empty[Symbol, Set[Name]]
+    private val newStaticMembers      = mutable.Buffer.empty[Tree]
+    private val newStaticInits        = mutable.Buffer.empty[Tree]
+    private val symbolsStoredAsStatic = mutable.Map.empty[String, Symbol]
     private def clearStatics() {
       newStaticMembers.clear()
       newStaticInits.clear()
@@ -48,9 +45,8 @@ abstract class CleanUp extends Transform with ast.TreeDSL {
       result
     }
     private def transformTemplate(tree: Tree) = {
-      val t @ Template(parents, self, body) = tree
+      val Template(parents, self, body) = tree
       clearStatics()
-
       val newBody = transformTrees(body)
       val templ   = deriveTemplate(tree)(_ => transformTrees(newStaticMembers.toList) ::: newBody)
       try addStaticInits(templ) // postprocess to include static ctors
@@ -351,8 +347,8 @@ abstract class CleanUp extends Transform with ast.TreeDSL {
             /** Normal non-Array call */
             def genDefaultCall = {
               // reflective method call machinery
-              val invokeName  = MethodClass.tpe member nme.invoke_                                  // reflect.Method.invoke(...)
-              def cache       = REF(reflectiveMethodCache(ad.symbol.name.toString, paramTypes)) // cache Symbol
+              val invokeName  = MethodClass.tpe member nme.invoke_                                  // scala.reflect.Method.invoke(...)
+              def cache       = REF(reflectiveMethodCache(ad.symbol.name.toString, paramTypes))     // cache Symbol
               def lookup      = Apply(cache, List(qual1() GETCLASS))                                // get Method object from cache
               def invokeArgs  = ArrayValue(TypeTree(ObjectClass.tpe), params)                       // args for invocation
               def invocation  = (lookup DOT invokeName)(qual1(), invokeArgs)                        // .invoke(qual1, ...)
@@ -441,19 +437,31 @@ abstract class CleanUp extends Transform with ast.TreeDSL {
            *   is a value type (int et al.) in which case it must cast to the boxed version
            *   because invoke only returns object and erasure made sure the result is
            *   expected to be an AnyRef. */
-          val t: Tree = ad.symbol.tpe match {
-            case MethodType(mparams, resType) =>
-              assert(params.length == mparams.length, mparams)
+          val t: Tree = {
+            val (mparams, resType) = ad.symbol.tpe match {
+              case MethodType(mparams, resType) =>
+                assert(params.length == mparams.length, ((params, mparams)))
+                (mparams, resType)
+              case tpe @ OverloadedType(pre, alts) =>
+                unit.warning(ad.pos, s"Overloaded type reached the backend! This is a bug in scalac.\n     Symbol: ${ad.symbol}\n  Overloads: $tpe\n  Arguments: " + ad.args.map(_.tpe))
+                alts filter (_.paramss.flatten.size == params.length) map (_.tpe) match {
+                  case mt @ MethodType(mparams, resType) :: Nil =>
+                    unit.warning(NoPosition, "Only one overload has the right arity, proceeding with overload " + mt)
+                    (mparams, resType)
+                  case _ =>
+                    unit.error(ad.pos, "Cannot resolve overload.")
+                    (Nil, NoType)
+                }
+            }
+            typedPos {
+              val sym = currentOwner.newValue(mkTerm("qual"), ad.pos) setInfo qual0.tpe
+              qual = REF(sym)
 
-              typedPos {
-                val sym = currentOwner.newValue(mkTerm("qual"), ad.pos) setInfo qual0.tpe
-                qual = REF(sym)
-
-                BLOCK(
-                  VAL(sym) === qual0,
-                  callAsReflective(mparams map (_.tpe), resType)
-                )
-              }
+              BLOCK(
+                VAL(sym) === qual0,
+                callAsReflective(mparams map (_.tpe), resType)
+              )
+            }
           }
 
           /* For testing purposes, the dynamic application's condition
@@ -549,75 +557,6 @@ abstract class CleanUp extends Transform with ast.TreeDSL {
 
           else tree
         }
-
-      case ValDef(mods, name, tpt, rhs) if tree.symbol.hasStaticAnnotation =>
-        def transformStaticValDef = {
-        log("moving @static valdef field: " + name + ", in: " + tree.symbol.owner)
-        val sym = tree.symbol
-        val owner = sym.owner
-
-        val staticBeforeLifting = atPhase(currentRun.erasurePhase) { owner.isStatic }
-        val isPrivate = atPhase(currentRun.typerPhase) { sym.getter(owner).hasFlag(PRIVATE) }
-        val isProtected = atPhase(currentRun.typerPhase) { sym.getter(owner).hasFlag(PROTECTED) }
-        val isLazy = atPhase(currentRun.typerPhase) { sym.getter(owner).hasFlag(LAZY) }
-        if (!owner.isModuleClass || !staticBeforeLifting) {
-          if (!sym.isSynthetic) {
-            reporter.error(tree.pos, "Only members of top-level objects and their nested objects can be annotated with @static.")
-            tree.symbol.removeAnnotation(StaticClass)
-          }
-          super.transform(tree)
-        } else if (isPrivate || isProtected) {
-          reporter.error(tree.pos, "The @static annotation is only allowed on public members.")
-          tree.symbol.removeAnnotation(StaticClass)
-          super.transform(tree)
-        } else if (isLazy) {
-          reporter.error(tree.pos, "The @static annotation is not allowed on lazy members.")
-          tree.symbol.removeAnnotation(StaticClass)
-          super.transform(tree)
-        } else if (owner.isModuleClass) {
-          val linkedClass = owner.companionClass match {
-            case NoSymbol =>
-              // create the companion class if it does not exist
-              val enclosing = owner.owner
-              val compclass = enclosing.newClass(newTypeName(owner.name.toString))
-              compclass setInfo ClassInfoType(List(ObjectClass.tpe), newScope, compclass)
-              enclosing.info.decls enter compclass
-
-              val compclstree = ClassDef(compclass, NoMods, ListOfNil, ListOfNil, List(), tree.pos)
-
-              syntheticClasses.getOrElseUpdate(enclosing, mutable.Set()) += compclstree
-
-              compclass
-            case comp => comp
-          }
-
-          // create a static field in the companion class for this @static field
-          val stfieldSym = linkedClass.newVariable(newTermName(name), tree.pos, STATIC | SYNTHETIC | FINAL) setInfo sym.tpe
-          stfieldSym.addAnnotation(StaticClass)
-
-          val names = classNames.getOrElseUpdate(linkedClass, linkedClass.info.decls.collect {
-            case sym if sym.name.isTermName => sym.name
-          } toSet)
-          if (names(stfieldSym.name)) {
-            reporter.error(
-              tree.pos,
-              "@static annotated field " + tree.symbol.name + " has the same name as a member of class " + linkedClass.name
-            )
-          } else {
-            linkedClass.info.decls enter stfieldSym
-
-            val initializerBody = rhs
-
-            // static field was previously initialized in the companion object itself, like this:
-            //   staticBodies((linkedClass, stfieldSym)) = Select(This(owner), sym.getter(owner))
-            // instead, we move the initializer to the static ctor of the companion class
-            // we save the entire ValDef/DefDef to extract the rhs later
-            staticBodies((linkedClass, stfieldSym)) = tree
-          }
-        }
-        super.transform(tree)
-        }
-        transformStaticValDef
 
       /* MSIL requires that the stack is empty at the end of a try-block.
        * Hence, we here rewrite all try blocks with a result != {Unit, All} such that they
@@ -733,11 +672,6 @@ abstract class CleanUp extends Transform with ast.TreeDSL {
       if (newStaticInits.isEmpty)
         template
       else {
-        val ctorBody = newStaticInits.toList flatMap {
-          case Block(stats, expr) => stats :+ expr
-          case t => List(t)
-        }
-
         val newCtor = findStaticCtor(template) match {
           // in case there already were static ctors - augment existing ones
           // currently, however, static ctors aren't being generated anywhere else
@@ -746,74 +680,19 @@ abstract class CleanUp extends Transform with ast.TreeDSL {
             deriveDefDef(ctor) {
               case block @ Block(stats, expr) =>
                 // need to add inits to existing block
-                treeCopy.Block(block, ctorBody ::: stats, expr)
+                treeCopy.Block(block, newStaticInits.toList ::: stats, expr)
               case term: TermTree =>
                 // need to create a new block with inits and the old term
-                treeCopy.Block(term, ctorBody, term)
+                treeCopy.Block(term, newStaticInits.toList, term)
             }
           case _ =>
             // create new static ctor
             val staticCtorSym  = currentClass.newStaticConstructor(template.pos)
-            val rhs            = Block(ctorBody, Literal(Constant(())))
+            val rhs            = Block(newStaticInits.toList, Literal(Constant(())))
 
             localTyper.typedPos(template.pos)(DefDef(staticCtorSym, rhs))
         }
         deriveTemplate(template)(newCtor :: _)
-      }
-    }
-
-    private def addStaticDeclarations(tree: Template, clazz: Symbol) {
-      // add static field initializer statements for each static field in clazz
-      if (!clazz.isModuleClass) for {
-        staticSym <- clazz.info.decls
-        if staticSym.hasStaticAnnotation
-      } staticSym match {
-        case stfieldSym if stfieldSym.isVariable =>
-          val valdef = staticBodies((clazz, stfieldSym))
-          val ValDef(_, _, _, rhs) = valdef
-          val fixedrhs = rhs.changeOwner((valdef.symbol, clazz.info.decl(nme.CONSTRUCTOR)))
-
-          val stfieldDef  = localTyper.typedPos(tree.pos)(VAL(stfieldSym) === EmptyTree)
-          val flattenedInit = fixedrhs match {
-            case Block(stats, expr) => Block(stats, REF(stfieldSym) === expr)
-            case rhs => REF(stfieldSym) === rhs
-          }
-          val stfieldInit = localTyper.typedPos(tree.pos)(flattenedInit)
-
-          // add field definition to new defs
-          newStaticMembers append stfieldDef
-          newStaticInits append stfieldInit
-        case _ => // ignore @static on other members
-      }
-    }
-
-
-
-    override def transformStats(stats: List[Tree], exprOwner: Symbol): List[Tree] = {
-      super.transformStats(stats, exprOwner) ++ {
-        // flush pending synthetic classes created in this owner
-        val synthclassdefs = syntheticClasses.get(exprOwner).toList.flatten
-        syntheticClasses -= exprOwner
-        synthclassdefs map {
-          cdef => localTyper.typedPos(cdef.pos)(cdef)
-        }
-      } map {
-        case clsdef @ ClassDef(mods, name, tparams, t @ Template(parent, self, body)) =>
-          // process all classes in the package again to add static initializers
-          clearStatics()
-
-          addStaticDeclarations(t, clsdef.symbol)
-
-          val templ  = deriveTemplate(t)(_ => transformTrees(newStaticMembers.toList) ::: body)
-          val ntempl =
-            try addStaticInits(templ)
-            finally clearStatics()
-
-          val derived = deriveClassDef(clsdef)(_ => ntempl)
-          classNames.remove(clsdef.symbol)
-          derived
-
-        case stat => stat
       }
     }
 

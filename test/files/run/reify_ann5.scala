@@ -16,9 +16,8 @@ object Test extends App {
   // test 2: import and typecheck
   val toolbox = cm.mkToolBox()
   val ttree = toolbox.typeCheck(tree)
-  ttree.foreach(sub => if (sub.hasSymbol) sub.symbol.typeSignature)
   println(ttree.toString)
 
   // test 3: import and compile
-  toolbox.runExpr(tree)
+  toolbox.eval(tree)
 }

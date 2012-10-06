@@ -15,7 +15,7 @@ import scala.reflect.internal.Flags.PRESUPER
 import scala.reflect.internal.Flags.TRAIT
 import scala.compat.Platform.EOL
 
-trait Trees extends reflect.internal.Trees { self: Global =>
+trait Trees extends scala.reflect.internal.Trees { self: Global =>
 
   def treeLine(t: Tree): String =
     if (t.pos.isDefined && t.pos.isRange) t.pos.lineContent.drop(t.pos.column - 1).take(t.pos.end - t.pos.start + 1)
@@ -48,12 +48,12 @@ trait Trees extends reflect.internal.Trees { self: Global =>
     override def isType = definition.isType
   }
 
- /** Array selection <qualifier> . <name> only used during erasure */
+ /** Array selection `<qualifier> . <name>` only used during erasure */
   case class SelectFromArray(qualifier: Tree, name: Name, erasure: Type)
        extends RefTree with TermTree
 
-  /** Derived value class injection (equivalent to: new C(arg) after easure); only used during erasure
-   *  The class C is stored as the symbol of the tree node.
+  /** Derived value class injection (equivalent to: `new C(arg)` after erasure); only used during erasure.
+   *  The class `C` is stored as a tree attachment.
    */
   case class InjectDerivedValue(arg: Tree)
        extends SymTree
@@ -116,7 +116,7 @@ trait Trees extends reflect.internal.Trees { self: Global =>
         // convert (implicit ... ) to ()(implicit ... ) if its the only parameter section
         if (vparamss1.isEmpty || !vparamss1.head.isEmpty && vparamss1.head.head.mods.isImplicit)
           vparamss1 = List() :: vparamss1;
-        val superRef: Tree = atPos(superPos)(gen.mkSuperSelect)
+        val superRef: Tree = atPos(superPos)(gen.mkSuperInitCall)
         val superCall = (superRef /: argss) (Apply.apply)
         List(
           atPos(wrappingPos(superPos, lvdefs ::: argss.flatten)) (
@@ -178,7 +178,7 @@ trait Trees extends reflect.internal.Trees { self: Global =>
     case _ => super.xtraverse(traverser, tree)
   }
 
-  trait TreeCopier extends super.TreeCopierOps {
+  trait TreeCopier extends super.InternalTreeCopierOps {
     def DocDef(tree: Tree, comment: DocComment, definition: Tree): DocDef
     def SelectFromArray(tree: Tree, qualifier: Tree, selector: Name, erasure: Type): SelectFromArray
     def InjectDerivedValue(tree: Tree, arg: Tree): InjectDerivedValue
@@ -281,7 +281,7 @@ trait Trees extends reflect.internal.Trees { self: Global =>
     val trace = scala.tools.nsc.util.trace when debug
 
     val locals = util.HashSet[Symbol](8)
-    val orderedLocals = collection.mutable.ListBuffer[Symbol]()
+    val orderedLocals = scala.collection.mutable.ListBuffer[Symbol]()
     def registerLocal(sym: Symbol) {
       if (sym != null && sym != NoSymbol) {
         if (debug && !(locals contains sym)) orderedLocals append sym
@@ -341,7 +341,7 @@ trait Trees extends reflect.internal.Trees { self: Global =>
                 tree
               case _ =>
                 val dupl = tree.duplicate
-                if (tree.hasSymbol && (!localOnly || (locals contains tree.symbol)) && !(keepLabels && tree.symbol.isLabel))
+                if (tree.hasSymbolField && (!localOnly || (locals contains tree.symbol)) && !(keepLabels && tree.symbol.isLabel))
                   dupl.symbol = NoSymbol
                 dupl.tpe = null
                 dupl

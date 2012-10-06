@@ -182,13 +182,13 @@ trait Scanners extends ScannersCommon {
 
     /** Are we directly in a string interpolation expression?
      */
-    @inline private def inStringInterpolation =
+    private def inStringInterpolation =
       sepRegions.nonEmpty && sepRegions.head == STRINGLIT
 
     /** Are we directly in a multiline string interpolation expression?
      *  @pre inStringInterpolation
      */
-    @inline private def inMultiLineInterpolation =
+    private def inMultiLineInterpolation =
       inStringInterpolation && sepRegions.tail.nonEmpty && sepRegions.tail.head == STRINGPART
 
     /** read next token and return last offset
@@ -360,7 +360,7 @@ trait Scanners extends ScannersCommon {
           if (ch == '"' && token == IDENTIFIER)
             token = INTERPOLATIONID
         case '<' => // is XMLSTART?
-          def fetchLT = {
+          def fetchLT() = {
             val last = if (charOffset >= 2) buf(charOffset - 2) else ' '
             nextChar()
             last match {
@@ -389,7 +389,7 @@ trait Scanners extends ScannersCommon {
             getOperatorRest()
           }
         case '0' =>
-          def fetchZero = {
+          def fetchZero() = {
             putChar(ch)
             nextChar()
             if (ch == 'x' || ch == 'X') {
@@ -416,7 +416,7 @@ trait Scanners extends ScannersCommon {
         case '`' =>
           getBackquotedIdent()
         case '\"' =>
-          def fetchDoubleQuote = {
+          def fetchDoubleQuote() = {
             if (token == INTERPOLATIONID) {
               nextRawChar()
               if (ch == '\"') {
@@ -452,7 +452,7 @@ trait Scanners extends ScannersCommon {
           }
           fetchDoubleQuote
         case '\'' =>
-          def fetchSingleQuote = {
+          def fetchSingleQuote() = {
             nextChar()
             if (isIdentifierStart(ch))
               charLitOr(getIdentRest)
@@ -500,7 +500,7 @@ trait Scanners extends ScannersCommon {
             nextChar()
           }
         case _ =>
-          def fetchOther = {
+          def fetchOther() = {
             if (ch == '\u21D2') {
               nextChar(); token = ARROW
             } else if (ch == '\u2190') {
@@ -754,8 +754,12 @@ trait Scanners extends ScannersCommon {
       } else {
         val isUnclosedLiteral = !isUnicodeEscape && (ch == SU || (!multiLine && (ch == CR || ch == LF)))
         if (isUnclosedLiteral) {
-          syntaxError(if (!multiLine) "unclosed string literal" else "unclosed multi-line string literal")
-        } else {
+          if (multiLine)
+            incompleteInputError("unclosed multi-line string literal")
+          else
+            syntaxError("unclosed string literal")
+        }
+        else {
           putChar(ch)
           nextRawChar()
           getStringPart(multiLine)
@@ -1298,7 +1302,7 @@ trait Scanners extends ScannersCommon {
   }
 
   class ParensAnalyzer(unit: CompilationUnit, patches: List[BracePatch]) extends UnitScanner(unit, patches) {
-    var balance = collection.mutable.Map(RPAREN -> 0, RBRACKET -> 0, RBRACE -> 0)
+    var balance = scala.collection.mutable.Map(RPAREN -> 0, RBRACKET -> 0, RBRACE -> 0)
 
     init()
 
@@ -1313,7 +1317,7 @@ trait Scanners extends ScannersCommon {
       var lineCount = 1
       var lastOffset = 0
       var indent = 0
-      val oldBalance = collection.mutable.Map[Int, Int]()
+      val oldBalance = scala.collection.mutable.Map[Int, Int]()
       def markBalance() = for ((k, v) <- balance) oldBalance(k) = v
       markBalance()
 

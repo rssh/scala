@@ -7,7 +7,7 @@ import scala.tools.nsc.util.ClassPath._
 import scala.reflect.runtime.ReflectionUtils
 import scala.collection.mutable.ListBuffer
 import scala.compat.Platform.EOL
-import reflect.internal.util.Statistics
+import scala.reflect.internal.util.Statistics
 import scala.reflect.macros.util._
 import java.lang.{Class => jClass}
 import java.lang.reflect.{Array => jArray, Method => jMethod}
@@ -26,7 +26,7 @@ import scala.reflect.macros.runtime.AbortMacroException
  *
  *  Then fooBar needs to point to a static method of the following form:
  *
- *    def fooBar[T: c.AbsTypeTag] // type tag annotation is optional
+ *    def fooBar[T: c.WeakTypeTag] // type tag annotation is optional
  *           (c: scala.reflect.macros.Context)
  *           (xs: c.Expr[List[T]])
  *           : c.Expr[T] = {
@@ -48,9 +48,6 @@ trait Macros extends scala.tools.reflect.FastTrack with Traces {
   import treeInfo.{isRepeatedParamType => _, _}
   import MacrosStats._
   def globalSettings = global.settings
-
-  val globalMacroCache = collection.mutable.Map[Any, Any]()
-  val perRunMacroCache = perRunCaches.newMap[Symbol, collection.mutable.Map[Any, Any]]
 
   /** `MacroImplBinding` and its companion module are responsible for
    *  serialization/deserialization of macro def -> impl bindings.
@@ -84,7 +81,7 @@ trait Macros extends scala.tools.reflect.FastTrack with Traces {
     val methName: String,
     // flattens the macro impl's parameter lists having symbols replaced with metadata
     // currently metadata is an index of the type parameter corresponding to that type tag (if applicable)
-    // f.ex. for: def impl[T: AbsTypeTag, U: AbsTypeTag, V](c: Context)(x: c.Expr[T]): (U, V) = ???
+    // f.ex. for: def impl[T: WeakTypeTag, U: WeakTypeTag, V](c: Context)(x: c.Expr[T]): (U, V) = ???
     // `signature` will be equal to List(-1, -1, 0, 1)
     val signature: List[Int],
     // type arguments part of a macro impl ref (the right-hand side of a macro definition)
@@ -216,7 +213,7 @@ trait Macros extends scala.tools.reflect.FastTrack with Traces {
   }
 
   /** Transforms parameters lists of a macro impl.
-   *  The `transform` function is invoked only for AbsTypeTag evidence parameters.
+   *  The `transform` function is invoked only for WeakTypeTag evidence parameters.
    *
    *  The transformer takes two arguments: a value parameter from the parameter list
    *  and a type parameter that is witnesses by the value parameter.
@@ -232,7 +229,7 @@ trait Macros extends scala.tools.reflect.FastTrack with Traces {
     if (paramss.isEmpty || paramss.last.isEmpty) return paramss // no implicit parameters in the signature => nothing to do
     if (paramss.head.isEmpty || !(paramss.head.head.tpe <:< MacroContextClass.tpe)) return paramss // no context parameter in the signature => nothing to do
     def transformTag(param: Symbol): Symbol = param.tpe.dealias match {
-      case TypeRef(SingleType(SingleType(NoPrefix, c), universe), AbsTypeTagClass, targ :: Nil)
+      case TypeRef(SingleType(SingleType(NoPrefix, c), universe), WeakTypeTagClass, targ :: Nil)
       if c == paramss.head.head && universe == MacroContextUniverse =>
         transform(param, targ.typeSymbol)
       case _ =>
@@ -303,53 +300,51 @@ trait Macros extends scala.tools.reflect.FastTrack with Traces {
   private def macroImplSig(macroDef: Symbol, tparams: List[TypeDef], vparamss: List[List[ValDef]], retTpe: Type): (List[List[Symbol]], Type) = {
     // had to move method's body to an object because of the recursive dependencies between sigma and param
     object SigGenerator {
-      def sigma(tpe: Type): Type = {
-        class SigmaTypeMap extends TypeMap {
-          def apply(tp: Type): Type = tp match {
-            case TypeRef(pre, sym, args) =>
-              val pre1 = pre match {
-                case ThisType(sym) if sym == macroDef.owner =>
-                  SingleType(SingleType(SingleType(NoPrefix, ctxParam), MacroContextPrefix), ExprValue)
-                case SingleType(NoPrefix, sym) =>
-                  mfind(vparamss)(_.symbol == sym) match {
-                    case Some(macroDefParam) => SingleType(SingleType(NoPrefix, param(macroDefParam)), ExprValue)
-                    case _ => pre
-                  }
-                case _ =>
-                  pre
-              }
-              TypeRef(pre1, sym, args map mapOver)
-            case _ =>
-              mapOver(tp)
-          }
-        }
+      def WeakTagClass   = getMember(MacroContextClass, tpnme.WeakTypeTag)
+      def ExprClass      = getMember(MacroContextClass, tpnme.Expr)
+      val cache          = scala.collection.mutable.Map[Symbol, Symbol]()
+      val ctxParam       = makeParam(nme.macroContext, macroDef.pos, MacroContextClass.tpe, SYNTHETIC)
+      val paramss        = List(ctxParam) :: mmap(vparamss)(param)
+      val implReturnType = typeRef(singleType(NoPrefix, ctxParam), ExprClass, List(sigma(retTpe)))
 
-        new SigmaTypeMap() apply tpe
+      object SigmaTypeMap extends TypeMap {
+        def mapPrefix(pre: Type) = pre match {
+          case ThisType(sym) if sym == macroDef.owner =>
+            singleType(singleType(singleType(NoPrefix, ctxParam), MacroContextPrefix), ExprValue)
+          case SingleType(NoPrefix, sym) =>
+            mfind(vparamss)(_.symbol == sym).fold(pre)(p => singleType(singleType(NoPrefix, param(p)), ExprValue))
+          case _ =>
+            mapOver(pre)
+        }
+        def apply(tp: Type): Type = tp match {
+          case TypeRef(pre, sym, args) =>
+            val pre1  = mapPrefix(pre)
+            val args1 = mapOverArgs(args, sym.typeParams)
+            if ((pre eq pre1) && (args eq args1)) tp
+            else typeRef(pre1, sym, args1)
+          case _ =>
+            mapOver(tp)
+        }
       }
+      def sigma(tpe: Type): Type = SigmaTypeMap(tpe)
 
-      def makeParam(name: Name, pos: Position, tpe: Type, flags: Long = 0L) =
+      def makeParam(name: Name, pos: Position, tpe: Type, flags: Long) =
         macroDef.newValueParameter(name, pos, flags) setInfo tpe
-      val ctxParam = makeParam(nme.macroContext, macroDef.pos, MacroContextClass.tpe, SYNTHETIC)
-      def implType(isType: Boolean, origTpe: Type): Type =
-        if (isRepeatedParamType(origTpe))
-          appliedType(
-            RepeatedParamClass.typeConstructor,
-            List(implType(isType, sigma(origTpe.typeArgs.head))))
-        else {
-          val tsym = getMember(MacroContextClass, if (isType) tpnme.AbsTypeTag else tpnme.Expr)
-          typeRef(singleType(NoPrefix, ctxParam), tsym, List(sigma(origTpe)))
-        }
-      val paramCache = collection.mutable.Map[Symbol, Symbol]()
-      def param(tree: Tree): Symbol =
-        paramCache.getOrElseUpdate(tree.symbol, {
-          val sym = tree.symbol
-          val sigParam = makeParam(sym.name, sym.pos, implType(sym.isType, sym.tpe))
-          if (sym.isSynthetic) sigParam.flags |= SYNTHETIC
-          sigParam
-        })
+      def implType(isType: Boolean, origTpe: Type): Type = {
+        def tsym = if (isType) WeakTagClass else ExprClass
+        def targ = origTpe.typeArgs.headOption getOrElse NoType
 
-      val paramss = List(ctxParam) :: mmap(vparamss)(param)
-      val implRetTpe = typeRef(singleType(NoPrefix, ctxParam), getMember(MacroContextClass, tpnme.Expr), List(sigma(retTpe)))
+        if (isRepeatedParamType(origTpe))
+          scalaRepeatedType(implType(isType, sigma(targ)))
+        else
+          typeRef(singleType(NoPrefix, ctxParam), tsym, List(sigma(origTpe)))
+      }
+      def param(tree: Tree): Symbol = (
+        cache.getOrElseUpdate(tree.symbol, {
+          val sym = tree.symbol
+          makeParam(sym.name, sym.pos, implType(sym.isType, sym.tpe), sym getFlag SYNTHETIC)
+        })
+      )
     }
 
     import SigGenerator._
@@ -357,7 +352,7 @@ trait Macros extends scala.tools.reflect.FastTrack with Traces {
     macroTraceVerbose("tparams are: ")(tparams)
     macroTraceVerbose("vparamss are: ")(vparamss)
     macroTraceVerbose("retTpe is: ")(retTpe)
-    macroTraceVerbose("macroImplSig is: ")(paramss, implRetTpe)
+    macroTraceVerbose("macroImplSig is: ")((paramss, implReturnType))
   }
 
   /** Verifies that the body of a macro def typechecks to a reference to a static public non-overloaded method,
@@ -588,7 +583,7 @@ trait Macros extends scala.tools.reflect.FastTrack with Traces {
     val nullaryArgsEmptyParams = exprArgs.isEmpty && macroDef.paramss == ListOfNil
     if (argcDoesntMatch && !nullaryArgsEmptyParams) { typer.TyperErrorGen.MacroPartialApplicationError(expandee) }
 
-    var argss: List[List[Any]] = exprArgs.toList
+    val argss: List[List[Any]] = exprArgs.toList
     macroTraceVerbose("context: ")(context)
     macroTraceVerbose("argss: ")(argss)
 
@@ -597,9 +592,6 @@ trait Macros extends scala.tools.reflect.FastTrack with Traces {
         if (fastTrack(macroDef) validate context) argss
         else typer.TyperErrorGen.MacroPartialApplicationError(expandee)
       } else {
-        val binding = loadMacroImplBinding(macroDef)
-        macroTraceVerbose("binding: ")(binding)
-
         // if paramss have typetag context bounds, add an arglist to argss if necessary and instantiate the corresponding evidences
         // consider the following example:
         //
@@ -616,6 +608,8 @@ trait Macros extends scala.tools.reflect.FastTrack with Traces {
         // then T and U need to be inferred from the lexical scope of the call using `asSeenFrom`
         // whereas V won't be resolved by asSeenFrom and need to be loaded directly from `expandee` which needs to contain a TypeApply node
         // also, macro implementation reference may contain a regular type as a type argument, then we pass it verbatim
+        val binding = loadMacroImplBinding(macroDef)
+        macroTraceVerbose("binding: ")(binding)
         val tags = binding.signature filter (_ != -1) map (paramPos => {
           val targ = binding.targs(paramPos).tpe.typeSymbol
           val tpe = if (targ.isTypeParameterOrSkolem) {
@@ -631,16 +625,15 @@ trait Macros extends scala.tools.reflect.FastTrack with Traces {
                 macroDef.owner)
           } else
             targ.tpe
-          if (tpe.isConcrete) context.TypeTag(tpe) else context.AbsTypeTag(tpe)
+          context.WeakTypeTag(tpe)
         })
-        val hasImplicitParams = macroDef.paramss.flatten.lastOption exists (_.isImplicit)
-        argss = if (hasImplicitParams) argss.dropRight(1) :+ (tags ++ argss.last) else argss :+ tags
+        macroTraceVerbose("tags: ")(tags)
 
         // transforms argss taking into account varargness of paramss
         // note that typetag context bounds are only declared on macroImpls
         // so this optional arglist might not match macroDef's paramlist
         // nb! varargs can apply to any parameter section, not necessarily to the last one
-        mapWithIndex(argss)((as, i) => {
+        mapWithIndex(argss :+ tags)((as, i) => {
           val mapsToParamss = macroDef.paramss.indices contains i
           if (mapsToParamss) {
             val ps = macroDef.paramss(i)
@@ -715,7 +708,7 @@ trait Macros extends scala.tools.reflect.FastTrack with Traces {
             if (isNullaryInvocation(expandee)) expectedTpe = expectedTpe.finalResultType
             var typechecked = typecheck("macro def return type", expanded, expectedTpe)
             typechecked = typecheck("expected type", typechecked, pt)
-            typechecked addAttachment MacroExpansionAttachment(expandee)
+            typechecked
           } finally {
             popMacroContext()
           }
@@ -764,7 +757,7 @@ trait Macros extends scala.tools.reflect.FastTrack with Traces {
       case (false, true) =>
         macroLogLite("macro expansion is delayed: %s".format(expandee))
         delayed += expandee -> undetparams
-        expandee addAttachment MacroRuntimeAttachment(delayed = true, typerContext = typer.context, macroContext = Some(macroArgs(typer, expandee).c))
+        expandee updateAttachment MacroRuntimeAttachment(delayed = true, typerContext = typer.context, macroContext = Some(macroArgs(typer, expandee).c))
         Delay(expandee)
       case (false, false) =>
         import typer.TyperErrorGen._
@@ -781,7 +774,7 @@ trait Macros extends scala.tools.reflect.FastTrack with Traces {
               macroLogLite("" + expanded.tree + "\n" + showRaw(expanded.tree))
               val freeSyms = expanded.tree.freeTerms ++ expanded.tree.freeTypes
               freeSyms foreach (sym => MacroFreeSymbolError(expandee, sym))
-              Success(atPos(enclosingMacroPosition.focus)(expanded.tree))
+              Success(atPos(enclosingMacroPosition.focus)(expanded.tree updateAttachment MacroExpansionAttachment(expandee)))
             case _ =>
               MacroExpansionIsNotExprError(expandee, expanded)
           }
@@ -832,11 +825,11 @@ trait Macros extends scala.tools.reflect.FastTrack with Traces {
    *    2) undetparams (sym.isTypeParameter && !sym.isSkolem)
    */
   var hasPendingMacroExpansions = false
-  private val delayed = perRunCaches.newWeakMap[Tree, collection.mutable.Set[Int]]
+  private val delayed = perRunCaches.newWeakMap[Tree, scala.collection.mutable.Set[Int]]
   private def isDelayed(expandee: Tree) = delayed contains expandee
-  private def calculateUndetparams(expandee: Tree): collection.mutable.Set[Int] =
+  private def calculateUndetparams(expandee: Tree): scala.collection.mutable.Set[Int] =
     delayed.get(expandee).getOrElse {
-      val calculated = collection.mutable.Set[Symbol]()
+      val calculated = scala.collection.mutable.Set[Symbol]()
       expandee foreach (sub => {
         def traverse(sym: Symbol) = if (sym != null && (undetparams contains sym.id)) calculated += sym
         if (sub.symbol != null) traverse(sub.symbol)
@@ -874,13 +867,13 @@ trait Macros extends scala.tools.reflect.FastTrack with Traces {
     new Transformer {
       override def transform(tree: Tree) = super.transform(tree match {
         // todo. expansion should work from the inside out
-        case wannabe if (delayed contains wannabe) && calculateUndetparams(wannabe).isEmpty =>
-          val context = wannabe.attachments.get[MacroRuntimeAttachment].get.typerContext
-          delayed -= wannabe
+        case tree if (delayed contains tree) && calculateUndetparams(tree).isEmpty =>
+          val context = tree.attachments.get[MacroRuntimeAttachment].get.typerContext
+          delayed -= tree
           context.implicitsEnabled = typer.context.implicitsEnabled
           context.enrichmentEnabled = typer.context.enrichmentEnabled
           context.macrosEnabled = typer.context.macrosEnabled
-          macroExpand(newTyper(context), wannabe, EXPRmode, WildcardType)
+          macroExpand(newTyper(context), tree, EXPRmode, WildcardType)
         case _ =>
           tree
       })
@@ -888,7 +881,7 @@ trait Macros extends scala.tools.reflect.FastTrack with Traces {
 }
 
 object MacrosStats {
-  import reflect.internal.TypesStats.typerNanos
+  import scala.reflect.internal.TypesStats.typerNanos
   val macroExpandCount    = Statistics.newCounter ("#macro expansions", "typer")
   val macroExpandNanos    = Statistics.newSubTimer("time spent in macroExpand", typerNanos)
 }

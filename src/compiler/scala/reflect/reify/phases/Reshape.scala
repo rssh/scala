@@ -101,11 +101,11 @@ trait Reshape {
             // hence we cannot reify references to them, because noone will be able to see them later
             // when implicit macros are fixed, these sneaky macros will move to corresponding companion objects
             // of, say, ClassTag or TypeTag
-            case Apply(TypeApply(_, List(tt)), _) if original.symbol == MacroInternal_materializeClassTag =>
+            case Apply(TypeApply(_, List(tt)), _) if original.symbol == materializeClassTag =>
               gen.mkNullaryCall(Predef_implicitly, List(appliedType(ClassTagClass, tt.tpe)))
-            case Apply(TypeApply(_, List(tt)), List(pre)) if original.symbol == MacroInternal_materializeAbsTypeTag =>
-              gen.mkNullaryCall(Predef_implicitly, List(typeRef(pre.tpe, AbsTypeTagClass, List(tt.tpe))))
-            case Apply(TypeApply(_, List(tt)), List(pre)) if original.symbol == MacroInternal_materializeTypeTag =>
+            case Apply(TypeApply(_, List(tt)), List(pre)) if original.symbol == materializeWeakTypeTag =>
+              gen.mkNullaryCall(Predef_implicitly, List(typeRef(pre.tpe, WeakTypeTagClass, List(tt.tpe))))
+            case Apply(TypeApply(_, List(tt)), List(pre)) if original.symbol == materializeTypeTag =>
               gen.mkNullaryCall(Predef_implicitly, List(typeRef(pre.tpe, TypeTagClass, List(tt.tpe))))
             case _ =>
               original
@@ -250,7 +250,7 @@ trait Reshape {
 
     private def trimAccessors(deff: Tree, stats: List[Tree]): List[Tree] = {
       val symdefs = (stats collect { case vodef: ValOrDefDef => vodef } map (vodeff => vodeff.symbol -> vodeff)).toMap
-      val accessors = collection.mutable.Map[ValDef, List[DefDef]]()
+      val accessors = scala.collection.mutable.Map[ValDef, List[DefDef]]()
       stats collect { case ddef: DefDef => ddef } foreach (defdef => {
         val valdef = symdefs get defdef.symbol.accessedOrSelf collect { case vdef: ValDef => vdef } getOrElse null
         if (valdef != null) accessors(valdef) = accessors.getOrElse(valdef, Nil) :+ defdef
