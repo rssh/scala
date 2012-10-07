@@ -655,7 +655,7 @@ trait Symbols { self: Universe =>
     def base: Type
     def selectors: List[Pair[Name,Name]]
 
-    override def isImport = false
+    override def isImport = true
 
   }
 
