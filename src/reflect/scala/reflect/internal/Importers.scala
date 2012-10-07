@@ -322,7 +322,7 @@ trait Importers extends api.Importers { self: SymbolTable =>
       importSymbol(sym.owner).newImport(sym.pos, importType(sym.base), 
                   sym.selectors map (x => (importName(x._1),importName(x._2)))
                   ).withAnnotations(
-                    sym.getAnnotations map (importAnnotationInfo(_))
+                    sym.annotations map (importAnnotationInfo(_))
                   )
 
     def importModifiers(mods: from.Modifiers): Modifiers =

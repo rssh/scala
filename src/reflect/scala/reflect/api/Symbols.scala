@@ -189,6 +189,12 @@ trait Symbols { self: Universe =>
      */
     def asClass: ClassSymbol = throw new ScalaReflectionException(s"$this is not a class")
 
+    /** Does this symbol represent a import?
+     *  If yes, `isTerm` is also guaranteed to be true.
+     */
+    def isImport: Boolean = false
+
+
     /** Does this symbol represent a free term captured by reification?
      *  If yes, `isTerm` is also guaranteed to be true.
      */
@@ -462,6 +468,7 @@ trait Symbols { self: Universe =>
     /** Does this symbol represent a by-name parameter?
      */
     def isByNameParam: Boolean
+
   }
 
   /** The API of type symbols */
@@ -642,11 +649,13 @@ trait Symbols { self: Universe =>
     def typeParams: List[Symbol]
   }
 
-  trait ImportSymbolApi extends TermSymbolApi with ImportSymbolBase { this: ImportSymbol =>
+  trait ImportSymbolApi extends TermSymbolApi { this: ImportSymbol =>
 
     /* type */
     def base: Type
     def selectors: List[Pair[Name,Name]]
+
+    override def isImport = false
 
   }
 

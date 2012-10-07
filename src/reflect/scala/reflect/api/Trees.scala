@@ -631,7 +631,7 @@ trait Trees { self: Universe =>
   /** An extractor class to create and pattern match with syntax `Import(expr, selectors)`.
    *  This AST node corresponds to the following Scala code:
    *
-   *    import expr.{selectors}
+   *    {annotations} import expr.{selectors}
    *
    *  Selectors are a list of ImportSelectors, which conceptually are pairs of names (from, to).
    *  The last (and maybe only name) may be a nme.WILDCARD. For instance:
@@ -640,14 +640,14 @@ trait Trees { self: Universe =>
    *
    *  Would be represented as:
    *
-   *    Import(qual, List(("x", "x"), ("y", "z"), (WILDCARD, null)))
+   *    Import(qual, List(("x", "x"), ("y", "z"), (WILDCARD, null)), Nil)
    *
    *  The symbol of an `Import` is an import symbol @see Symbol.newImport.
    *  It's used primarily as a marker to check that the import has been typechecked.
    */
   abstract class ImportExtractor {
-    def apply(expr: Tree, selectors: List[ImportSelector]): Import
-    def unapply(import_ : Import): Option[(Tree, List[ImportSelector])]
+    def apply(expr: Tree, selectors: List[ImportSelector], annotations:List[Tree]): Import
+    def unapply(import_ : Import): Option[(Tree, List[ImportSelector], List[Tree])]
   }
 
   /** The API that all imports support */

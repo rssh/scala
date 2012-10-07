@@ -2613,7 +2613,7 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
   {
     require( base ne null )
     override def decodedName = baseName + "." + selectorsName +
-                                "(" + getAnnotations.mkString(",") + ")"
+                                "(" + annotations.mkString(",") + ")"
 
     def baseName: String = if (base ne null) base.toString else "null" ;
 
