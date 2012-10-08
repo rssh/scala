@@ -659,8 +659,49 @@ trait Types extends api.Types { self: SymbolTable =>
       (result, nrtrack)
     }
     
-    /** All symbols, avialable from implicit imports
-    */
+    /** symbols, available from exported imports
+     * return all symbols which exported (directly or indirectly) from this type
+     * via exported imports and satisficy filter
+     *@param predicate - filter to checl
+     *@param alreadyExported - set fo types which was already searched [to prevent endless loop when producing cyclic exports]
+     *@return - pair of symbol and type where one is defined.
+     */
+    def exports(predicate: Symbol => Boolean, alreadyExported:Set[Type]): List[(Symbol,Type)] =
+    {
+      if (alreadyExported.contains(this)) {
+         Nil
+      } else {
+         var newAlreadyExported = alreadyExported + this
+         exportedImports.flatMap(x =>
+            if (newAlreadyExported.contains(x.base)) Nil
+            else x.selectors.flatMap( sel =>
+              if (sel._1 == nme.WILDCARD) {
+                x.base.members.filter(predicate).map( sym => (sym,x.base) ) ++
+                  x.base.exports(predicate, newAlreadyExported)
+              } else if (sel._2 != nme.WILDCARD) {
+                 val sym = x.base.nonLocalMember(sel._1);
+                 if (sym!=NoSymbol && predicate(sym)) {
+                     List(
+                       (if (sel._1 != sel._2) 
+                           sym.cloneSymbol(sym.owner,sym.rawflags,sel._2)
+                        else 
+                          sym,
+                        x.base)
+                     )
+                 } else {
+                    Nil
+                 }
+              } else {
+                 // disabled
+                 Nil
+              }
+            )
+         )
+      }
+    }
+
+
+  /* 
     def allExports(alreadyExported: Set[Type]):List[Symbol] =
     {
       if (alreadyExported.contains(this)) {
@@ -688,6 +729,7 @@ trait Types extends api.Types { self: SymbolTable =>
        )
       }
     }
+  */
     
     /** A list of all non-private members defined or declared in this type. */
     def nonPrivateDecls: List[Symbol] = decls.filterNot(_.isPrivate).toList

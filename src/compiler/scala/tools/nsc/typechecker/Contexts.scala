@@ -631,7 +631,7 @@ trait Contexts { self: Analyzer =>
         (e ne null) && (e.owner == scope)
       })
 
-    private def collectImplicits(syms: Scope, pre: Type, imported: Boolean = false): List[ImplicitInfo] =
+    private def collectImplicits(syms: Iterable[Symbol], pre: Type, imported: Boolean = false): List[ImplicitInfo] =
       for (sym <- syms.toList if isQualifyingImplicit(sym.name, sym, pre, imported)) yield
         new ImplicitInfo(sym.name, pre, sym)
 
@@ -641,7 +641,10 @@ trait Contexts { self: Analyzer =>
         case List() =>
           List()
         case List(ImportSelector(nme.WILDCARD, _, _, _)) =>
-          collectImplicits(pre.implicitMembers, pre, imported = true)
+          collectImplicits(pre.implicitMembers, pre, imported = true) ++
+            pre.exports( sym => isQualifyingImplicit(sym.name, sym, pre, true) , 
+                         scala.collection.immutable.Set()).map {
+                               case (s,t)=>new ImplicitInfo(s.name,t,s) }
         case ImportSelector(from, _, to, _) :: sels1 =>
           var impls = collect(sels1) filter (info => info.name != from)
           if (to != nme.WILDCARD) {
@@ -756,9 +759,9 @@ trait Contexts { self: Analyzer =>
       result
     }
 
-    def allImportedSymbols: Iterable[Symbol] =
+    def allImportedSymbols: Iterable[Symbol] = 
       (qual.tpe.members flatMap (transformImport(tree.selectors, _)) ) ++ 
-           qual.tpe.allExports(scala.collection.immutable.Set())
+           qual.tpe.exports( (sym => true),  scala.collection.immutable.Set()).map(_._1)
 
     private def transformImport(selectors: List[ImportSelector], sym: Symbol): List[Symbol] = selectors match {
       case List() => List()
