@@ -701,36 +701,6 @@ trait Types extends api.Types { self: SymbolTable =>
     }
 
 
-  /* 
-    def allExports(alreadyExported: Set[Type]):List[Symbol] =
-    {
-      if (alreadyExported.contains(this)) {
-        Nil
-      } else {
-       var newAlready = alreadyExported + this
-       exportedImports.flatMap(x =>
-         if (newAlready.contains(x.base)) Nil
-         else x.selectors.flatMap( sel =>
-           if (sel._1 == nme.WILDCARD) {
-              x.base.members ++ x.base.allExports(newAlready)
-           } else if (sel._2 != nme.WILDCARD) {
-              val sym = x.base.nonLocalMember(sel._1);
-              if (x!=NoSymbol) {   
-                 List(if (sel._1 != sel._2) {
-                        sym.cloneSymbol(sym.owner,sym.rawflags,sel._2)
-                      } else {
-                        sym
-                      }
-                 )
-              }else Nil
-           } else 
-              Nil
-         ) 
-       )
-      }
-    }
-  */
-    
     /** A list of all non-private members defined or declared in this type. */
     def nonPrivateDecls: List[Symbol] = decls.filterNot(_.isPrivate).toList
 
