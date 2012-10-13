@@ -1,6 +1,7 @@
 package vii
 
 import scala.annotation.exported
+import language.implicitConversions
 
 
 package object x
