@@ -325,6 +325,23 @@ trait Namers extends MethodSynthesis {
                                       //  expr.tpe will be set after call of completerOf to
                                       //  import tree, so use proxy for deffering
                                       override def underlying: Type = expr.tpe
+
+                                      // can be called from completerOf before initializing of tpe
+                                      // when resolving annotations in this import.
+                                      //
+                                      override def findExportedImport(name: Name, rtrack:Set[Type]): (Symbol, Set[Type]) =
+                                         if (underlying ne null) 
+                                           underlying.findExportedImport(name,rtrack)
+                                         else
+                                           (NoSymbol, rtrack)
+
+                                      // the same 
+                                      override def baseClasses =
+                                         if (underlying ne null) 
+                                            underlying.baseClasses
+                                         else
+                                            List()
+
                                       
                                       override def safeToString = "<["+ 
                                             (if (underlying ne null) 
@@ -335,9 +352,9 @@ trait Namers extends MethodSynthesis {
                                selectors.map(x=>(x.name,x.rename))
                              ) withAnnotations(
                                  annotations map( ann => AnnotationInfo lazily enteringTyper(typer typedAnnotation ann))
-                              ) setInfo completerOf(tree)
-                              
-
+                             ) setInfo completerOf(
+                                 tree
+                             )
       }
     }
 

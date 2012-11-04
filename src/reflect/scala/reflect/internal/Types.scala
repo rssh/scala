@@ -610,11 +610,15 @@ trait Types extends api.Types { self: SymbolTable =>
      */
     def decl(name: Name): Symbol = findDecl(name, 0)
 
-    /** For a classtype or refined type - implicit imports, the empty scope
+    /** For a classtype or refined type - exported imports, the empty scope
      * for all other types.
      */
-    def exportedImports: List[ImportSymbol] = decls.lookupAll(nme.IMPORT) flatMap {
-                                                  case sym: ImportSymbol => if (sym.hasAnnotation(ExportedClass)) Some(sym) else None
+    def exportedImports: List[ImportSymbol] = decls.lookupAll(nme.IMPORT) map {
+                                                    // note, that exportedSymbols can-be called during symbol lookup,
+                                                    // which can be called during hasAnnotation, so
+                                                    // does not call 'hasAnnotation' here  (and we know that if
+                                                    //   we put import symbol in decl,  than this is exported import)
+                                                  case sym: ImportSymbol => sym 
                                               } toList
 
     /** Find name in implicit imports
@@ -622,7 +626,7 @@ trait Types extends api.Types { self: SymbolTable =>
     def exportedImport(name: Name): Symbol =
            findExportedImport(name,Set())._1
 
-    private def findExportedImport(name: Name, rtrack:Set[Type]): (Symbol, Set[Type]) =
+    def findExportedImport(name: Name, rtrack:Set[Type]): (Symbol, Set[Type]) =
     {
       var result: Symbol = NoSymbol
       var nrtrack = (rtrack + this)
