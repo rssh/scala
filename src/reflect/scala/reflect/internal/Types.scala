@@ -94,6 +94,7 @@ trait Types extends api.Types { self: SymbolTable =>
 
   private final val printLubs = sys.props contains "scalac.debug.lub"
   private final val traceTypeVars = sys.props contains "scalac.debug.tvar"
+  private final val breakCycles = settings.breakCycles.value
   /** In case anyone wants to turn off lub verification without reverting anything. */
   private final val verifyLubs = true
   /** In case anyone wants to turn off type parameter bounds being used
@@ -826,6 +827,7 @@ trait Types extends api.Types { self: SymbolTable =>
      *  }}}
      */
     def memberInfo(sym: Symbol): Type = {
+      require(sym ne NoSymbol, this)
       sym.info.asSeenFrom(this, sym.owner)
     }
 
@@ -1495,7 +1497,7 @@ trait Types extends api.Types { self: SymbolTable =>
 
   object ThisType extends ThisTypeExtractor {
     def apply(sym: Symbol): Type =
-      if (phase.erasedTypes) sym.tpe
+      if (phase.erasedTypes) sym.tpe_*
       else unique(new UniqueThisType(sym))
   }
 
@@ -1706,6 +1708,38 @@ trait Types extends api.Types { self: SymbolTable =>
     )
   }
 
+  protected def computeBaseClasses(tpe: Type): List[Symbol] = {
+    val parents = tpe.parents // adriaan says tpe.parents does work sometimes, so call it only once
+    val baseTail = (
+      if (parents.isEmpty || parents.head.isInstanceOf[PackageTypeRef]) Nil
+      else {
+        //Console.println("computing base classes of " + typeSymbol + " at phase " + phase);//DEBUG
+        // optimized, since this seems to be performance critical
+        val superclazz = parents.head // parents.isEmpty was already excluded
+        var mixins     = parents.tail
+        val sbcs       = superclazz.baseClasses
+        var bcs        = sbcs
+        def isNew(clazz: Symbol): Boolean = (
+          superclazz.baseTypeIndex(clazz) < 0 &&
+          { var p = bcs;
+            while ((p ne sbcs) && (p.head != clazz)) p = p.tail;
+            p eq sbcs
+          }
+        )
+        while (!mixins.isEmpty) {
+          def addMixinBaseClasses(mbcs: List[Symbol]): List[Symbol] =
+            if (mbcs.isEmpty) bcs
+            else if (isNew(mbcs.head)) mbcs.head :: addMixinBaseClasses(mbcs.tail)
+            else addMixinBaseClasses(mbcs.tail)
+          bcs = addMixinBaseClasses(mixins.head.baseClasses)
+          mixins = mixins.tail
+        }
+        bcs
+      }
+    )
+    tpe.typeSymbol :: baseTail
+  }
+
   protected def defineBaseTypeSeqOfCompoundType(tpe: CompoundType) = {
     val period = tpe.baseTypeSeqPeriod
     if (period != currentPeriod) {
@@ -1725,7 +1759,7 @@ trait Types extends api.Types { self: SymbolTable =>
           val paramToVarMap = varToParamMap map (_.swap)
           val varToParam = new TypeMap {
             def apply(tp: Type) = varToParamMap get tp match {
-              case Some(sym) => sym.tpe
+              case Some(sym) => sym.tpe_*
               case _ => mapOver(tp)
             }
           }
@@ -1744,7 +1778,7 @@ trait Types extends api.Types { self: SymbolTable =>
             tpe.baseTypeSeqCache = undetBaseTypeSeq
             tpe.baseTypeSeqCache =
               if (tpe.typeSymbol.isRefinementClass)
-                tpe.memo(compoundBaseTypeSeq(tpe))(_.baseTypeSeq updateHead tpe.typeSymbol.tpe)
+                tpe.memo(compoundBaseTypeSeq(tpe))(_.baseTypeSeq updateHead tpe.typeSymbol.tpe_*)
               else
                 compoundBaseTypeSeq(tpe)
           } finally {
@@ -1766,41 +1800,61 @@ trait Types extends api.Types { self: SymbolTable =>
       throw new TypeError("illegal cyclic inheritance involving " + tpe.typeSymbol)
   }
 
-  protected def defineBaseClassesOfCompoundType(tpe: CompoundType) = {
-    def computeBaseClasses: List[Symbol] =
-      if (tpe.parents.isEmpty) List(tpe.typeSymbol)
-      else {
-        //Console.println("computing base classes of " + typeSymbol + " at phase " + phase);//DEBUG
-        // optimized, since this seems to be performance critical
-        val superclazz = tpe.firstParent
-        var mixins = tpe.parents.tail
-        val sbcs = superclazz.baseClasses
-        var bcs = sbcs
-        def isNew(clazz: Symbol): Boolean =
-          superclazz.baseTypeIndex(clazz) < 0 &&
-          { var p = bcs;
-            while ((p ne sbcs) && (p.head != clazz)) p = p.tail;
-            p eq sbcs
-          }
-        while (!mixins.isEmpty) {
-          def addMixinBaseClasses(mbcs: List[Symbol]): List[Symbol] =
-            if (mbcs.isEmpty) bcs
-            else if (isNew(mbcs.head)) mbcs.head :: addMixinBaseClasses(mbcs.tail)
-            else addMixinBaseClasses(mbcs.tail)
-          bcs = addMixinBaseClasses(mixins.head.baseClasses)
-          mixins = mixins.tail
+  object baseClassesCycleMonitor {
+    private var open: List[Symbol] = Nil
+    @inline private def cycleLog(msg: => String) {
+      if (settings.debug.value)
+        Console.err.println(msg)
+    }
+    def size = open.size
+    def push(clazz: Symbol) {
+      cycleLog("+ " + ("  " * size) + clazz.fullNameString)
+      open ::= clazz
+    }
+    def pop(clazz: Symbol) {
+      assert(open.head eq clazz, (clazz, open))
+      open = open.tail
+    }
+    def isOpen(clazz: Symbol) = open contains clazz
+  }
+
+  protected def defineBaseClassesOfCompoundType(tpe: CompoundType) {
+    def define = defineBaseClassesOfCompoundType(tpe, force = false)
+    if (isPastTyper || !breakCycles) define
+    else tpe match {
+      // non-empty parents helpfully excludes all package classes
+      case tpe @ ClassInfoType(_ :: _, _, clazz) if !clazz.isAnonOrRefinementClass =>
+        // Cycle: force update
+        if (baseClassesCycleMonitor isOpen clazz)
+          defineBaseClassesOfCompoundType(tpe, force = true)
+        else {
+          baseClassesCycleMonitor push clazz
+          try define
+          finally baseClassesCycleMonitor pop clazz
         }
-        tpe.typeSymbol :: bcs
-      }
+      case _ =>
+        define
+    }
+  }
+  private def defineBaseClassesOfCompoundType(tpe: CompoundType, force: Boolean) {
     val period = tpe.baseClassesPeriod
-    if (period != currentPeriod) {
+    if (period == currentPeriod) {
+      if (force && breakCycles) {
+        def what = tpe.typeSymbol + " in " + tpe.typeSymbol.owner.fullNameString
+        val bcs  = computeBaseClasses(tpe)
+        tpe.baseClassesCache = bcs
+        warning(s"Breaking cycle in base class computation of $what ($bcs)")
+      }
+    }
+    else {
       tpe.baseClassesPeriod = currentPeriod
       if (!isValidForBaseClasses(period)) {
         val start = if (Statistics.canEnable) Statistics.pushTimer(typeOpsStack, baseClassesNanos) else null
         try {
           tpe.baseClassesCache = null
-          tpe.baseClassesCache = tpe.memo(computeBaseClasses)(tpe.typeSymbol :: _.baseClasses.tail)
-        } finally {
+          tpe.baseClassesCache = tpe.memo(computeBaseClasses(tpe))(tpe.typeSymbol :: _.baseClasses.tail)
+        }
+        finally {
           if (Statistics.canEnable) Statistics.popTimer(typeOpsStack, start)
         }
       }
@@ -3722,16 +3776,16 @@ trait Types extends api.Types { self: SymbolTable =>
 
     tycon match {
       case TypeRef(pre, sym @ (NothingClass|AnyClass), _) => copyTypeRef(tycon, pre, sym, Nil)   //@M drop type args to Any/Nothing
-      case TypeRef(pre, sym, _)                           => copyTypeRef(tycon, pre, sym, args)
+      case TypeRef(pre, sym, Nil)                         => copyTypeRef(tycon, pre, sym, args)
+      case TypeRef(pre, sym, bogons)                      => debugwarn(s"Dropping $bogons from $tycon in appliedType.") ; copyTypeRef(tycon, pre, sym, args)
       case PolyType(tparams, restpe)                      => restpe.instantiateTypeParams(tparams, args)
       case ExistentialType(tparams, restpe)               => newExistentialType(tparams, appliedType(restpe, args))
       case st: SingletonType                              => appliedType(st.widen, args) // @M TODO: what to do? see bug1
-      case RefinedType(parents, decls)                    => RefinedType(parents map (appliedType(_, args)), decls) // MO to AM: please check
-      case TypeBounds(lo, hi)                             => TypeBounds(appliedType(lo, args), appliedType(hi, args))
+      case RefinedType(parents, decls)                    => RefinedType(parents map (appliedType(_, args)), decls)   // @PP: Can this be right?
+      case TypeBounds(lo, hi)                             => TypeBounds(appliedType(lo, args), appliedType(hi, args)) // @PP: Can this be right?
       case tv@TypeVar(_, _)                               => tv.applyArgs(args)
       case AnnotatedType(annots, underlying, self)        => AnnotatedType(annots, appliedType(underlying, args), self)
-      case ErrorType                                      => tycon
-      case WildcardType                                   => tycon // needed for neg/t0226
+      case ErrorType | WildcardType                       => tycon
       case _                                              => abort(debugString(tycon))
     }
   }
@@ -4633,16 +4687,18 @@ trait Types extends api.Types { self: SymbolTable =>
         tp
     }
 
-    def apply(tp0: Type): Type = if (from.isEmpty) tp0 else {
-      @tailrec def subst(tp: Type, sym: Symbol, from: List[Symbol], to: List[T]): Type =
-        if (from.isEmpty) tp
-        // else if (to.isEmpty) error("Unexpected substitution on '%s': from = %s but to == Nil".format(tp, from))
-        else if (matches(from.head, sym)) toType(tp, to.head)
-        else subst(tp, sym, from.tail, to.tail)
+    @tailrec private def subst(tp: Type, sym: Symbol, from: List[Symbol], to: List[T]): Type = (
+      if (from.isEmpty) tp
+      // else if (to.isEmpty) error("Unexpected substitution on '%s': from = %s but to == Nil".format(tp, from))
+      else if (matches(from.head, sym)) toType(tp, to.head)
+      else subst(tp, sym, from.tail, to.tail)
+    )
 
-      val boundSyms = tp0.boundSyms
-      val tp1 = if (boundSyms.nonEmpty && (boundSyms exists from.contains)) renameBoundSyms(tp0) else tp0
-      val tp = mapOver(tp1)
+    def apply(tp0: Type): Type = if (from.isEmpty) tp0 else {
+      val boundSyms             = tp0.boundSyms
+      val tp1                   = if (boundSyms.nonEmpty && (boundSyms exists from.contains)) renameBoundSyms(tp0) else tp0
+      val tp                    = mapOver(tp1)
+      def substFor(sym: Symbol) = subst(tp, sym, from, to)
 
       tp match {
         // @M
@@ -4657,9 +4713,11 @@ trait Types extends api.Types { self: SymbolTable =>
         // (must not recurse --> loops)
         // 3) replacing m by List in m[Int] should yield List[Int], not just List
         case TypeRef(NoPrefix, sym, args) =>
-          appliedType(subst(tp, sym, from, to), args) // if args.isEmpty, appliedType is the identity
+          val tcon = substFor(sym)
+          if ((tp eq tcon) || args.isEmpty) tcon
+          else appliedType(tcon.typeConstructor, args)
         case SingleType(NoPrefix, sym) =>
-          subst(tp, sym, from, to)
+          substFor(sym)
         case _ =>
           tp
       }
@@ -4674,25 +4732,29 @@ trait Types extends api.Types { self: SymbolTable =>
       case TypeRef(pre, _, args) => copyTypeRef(fromtp, pre, sym, args)
       case SingleType(pre, _) => singleType(pre, sym)
     }
-    override def apply(tp: Type): Type = if (from.isEmpty) tp else {
-      @tailrec def subst(sym: Symbol, from: List[Symbol], to: List[Symbol]): Symbol =
-        if (from.isEmpty) sym
-        // else if (to.isEmpty) error("Unexpected substitution on '%s': from = %s but to == Nil".format(sym, from))
-        else if (matches(from.head, sym)) to.head
-        else subst(sym, from.tail, to.tail)
-      tp match {
+    @tailrec private def subst(sym: Symbol, from: List[Symbol], to: List[Symbol]): Symbol = (
+      if (from.isEmpty) sym
+      // else if (to.isEmpty) error("Unexpected substitution on '%s': from = %s but to == Nil".format(sym, from))
+      else if (matches(from.head, sym)) to.head
+      else subst(sym, from.tail, to.tail)
+    )
+    private def substFor(sym: Symbol) = subst(sym, from, to)
+
+    override def apply(tp: Type): Type = (
+      if (from.isEmpty) tp
+      else tp match {
         case TypeRef(pre, sym, args) if pre ne NoPrefix =>
-          val newSym = subst(sym, from, to)
+          val newSym = substFor(sym)
           // mapOver takes care of subst'ing in args
           mapOver ( if (sym eq newSym) tp else copyTypeRef(tp, pre, newSym, args) )
           // assert(newSym.typeParams.length == sym.typeParams.length, "typars mismatch in SubstSymMap: "+(sym, sym.typeParams, newSym, newSym.typeParams))
         case SingleType(pre, sym) if pre ne NoPrefix =>
-          val newSym = subst(sym, from, to)
+          val newSym = substFor(sym)
           mapOver( if (sym eq newSym) tp else singleType(pre, newSym) )
         case _ =>
           super.apply(tp)
       }
-    }
+    )
 
     override def mapOver(tree: Tree, giveup: ()=>Nothing): Tree = {
       object trans extends TypeMapTransformer {
@@ -6168,6 +6230,7 @@ trait Types extends api.Types { self: SymbolTable =>
    *  than member `sym2` of `tp2`?
    */
   private def specializesSym(tp1: Type, sym1: Symbol, tp2: Type, sym2: Symbol, depth: Int): Boolean = {
+    require((sym1 ne NoSymbol) && (sym2 ne NoSymbol), ((tp1, sym1, tp2, sym2, depth)))
     val info1 = tp1.memberInfo(sym1)
     val info2 = tp2.memberInfo(sym2).substThis(tp2.typeSymbol, tp1)
     //System.out.println("specializes "+tp1+"."+sym1+":"+info1+sym1.locationString+" AND "+tp2+"."+sym2+":"+info2)//DEBUG

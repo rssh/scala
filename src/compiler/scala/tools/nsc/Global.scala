@@ -1046,6 +1046,12 @@ class Global(var currentSettings: Settings, var reporter: Reporter)
   def currentUnit: CompilationUnit = if (currentRun eq null) NoCompilationUnit else currentRun.currentUnit
   def currentSource: SourceFile    = if (currentUnit.exists) currentUnit.source else lastSeenSourceFile
 
+  override def isPastTyper = (
+       (curRun ne null)
+    && (currentRun.typerPhase ne null)
+    && (globalPhase.id > currentRun.typerPhase.id)
+  )
+
   // TODO - trim these to the absolute minimum.
   @inline final def exitingErasure[T](op: => T): T        = exitingPhase(currentRun.erasurePhase)(op)
   @inline final def exitingPostErasure[T](op: => T): T    = exitingPhase(currentRun.posterasurePhase)(op)
@@ -1745,12 +1751,9 @@ class Global(var currentSettings: Settings, var reporter: Reporter)
   // deprecated method: but I see no simple way out, so I leave it for now.
   def forJVM           = settings.target.value startsWith "jvm"
   override def forMSIL = settings.target.value startsWith "msil"
-  def forInteractive   = onlyPresentation
-  def forScaladoc      = onlyPresentation
+  def forInteractive   = false
+  def forScaladoc      = false
   def createJavadoc    = false
-
-  @deprecated("Use forInteractive or forScaladoc, depending on what you're after", "2.9.0")
-  def onlyPresentation = false
 }
 
 object Global {

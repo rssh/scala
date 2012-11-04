@@ -187,8 +187,6 @@ class IMain(initialSettings: Settings, protected val out: JPrintWriter) extends 
       else null
     }
   }
-  @deprecated("Use `global` for access to the compiler instance.", "2.9.0")
-  lazy val compiler: global.type = global
 
   import global._
   import definitions.{ScalaPackage, JavaLangPackage, termMember, typeMember}
@@ -1064,7 +1062,7 @@ class IMain(initialSettings: Settings, protected val out: JPrintWriter) extends 
   }
   def cleanMemberDecl(owner: Symbol, member: Name): Type = exitingTyper {
     normalizeNonPublic {
-      owner.info.nonPrivateDecl(member).tpe match {
+      owner.info.nonPrivateDecl(member).tpe_* match {
         case NullaryMethodType(tp) => tp
         case tp                    => tp
       }
