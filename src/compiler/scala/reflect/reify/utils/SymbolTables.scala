@@ -28,7 +28,7 @@ trait SymbolTables {
       symtab.get(sym) match {
         case Some(FreeDef(_, name, _, _, _)) => name
         case Some(SymDef(_, name, _, _)) => name
-        case None => EmptyTermName
+        case None => nme.EMPTY
       }
 
     def symAliases(sym: Symbol): List[TermName] =
@@ -87,11 +87,6 @@ trait SymbolTables {
       }
       val bindingAttachment = reification.attachments.get[ReifyBindingAttachment].get
       add(ValDef(NoMods, freshName(name0), TypeTree(), reification) updateAttachment bindingAttachment)
-    }
-
-    private def add(sym: Symbol, name: TermName): SymbolTable = {
-      if (!(syms contains sym)) error("cannot add an alias to a symbol not in the symbol table")
-      add(sym, name, EmptyTree)
     }
 
     private def remove(sym: Symbol): SymbolTable = {

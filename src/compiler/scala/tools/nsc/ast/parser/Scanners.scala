@@ -283,10 +283,16 @@ trait Scanners extends ScannersCommon {
         prev copyFrom this
         val nextLastOffset = charOffset - 1
         fetchToken()
+        def resetOffset() {
+          offset = prev.offset
+          lastOffset = prev.lastOffset
+        }
         if (token == CLASS) {
           token = CASECLASS
+          resetOffset()
         } else if (token == OBJECT) {
           token = CASEOBJECT
+          resetOffset()
         } else {
           lastOffset = nextLastOffset
           next copyFrom this
@@ -607,7 +613,10 @@ trait Scanners extends ScannersCommon {
       if (ch == '`') {
         nextChar()
         finishNamed(BACKQUOTED_IDENT)
-        if (name.length == 0) syntaxError("empty quoted identifier")
+        if (name.length == 0)
+          syntaxError("empty quoted identifier")
+        else if (name == nme.WILDCARD)
+          syntaxError("wildcard invalid as backquoted identifier")
       }
       else syntaxError("unclosed quoted identifier")
     }

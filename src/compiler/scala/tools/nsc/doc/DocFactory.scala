@@ -39,9 +39,6 @@ class DocFactory(val reporter: Reporter, val settings: doc.Settings) { processor
       phasesSet += analyzer.namerFactory
       phasesSet += analyzer.packageObjects
       phasesSet += analyzer.typerFactory
-      phasesSet += superAccessors
-      phasesSet += pickler
-      phasesSet += refChecks
     }
     override def forScaladoc = true
   }
@@ -86,7 +83,7 @@ class DocFactory(val reporter: Reporter, val settings: doc.Settings) { processor
         with model.comment.CommentFactory
         with model.TreeFactory
         with model.MemberLookup {
-          override def templateShouldDocument(sym: compiler.Symbol, inTpl: TemplateImpl) =
+          override def templateShouldDocument(sym: compiler.Symbol, inTpl: DocTemplateImpl) =
             extraTemplatesToDocument(sym) || super.templateShouldDocument(sym, inTpl)
         }
     )

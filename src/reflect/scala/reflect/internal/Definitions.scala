@@ -31,7 +31,7 @@ trait Definitions extends api.StandardDefinitions {
     val clazz = owner.newClassSymbol(name, NoPosition, flags)
     clazz setInfoAndEnter ClassInfoType(parents, newScope, clazz)
   }
-  private def newMethod(owner: Symbol, name: TermName, formals: List[Type], restpe: Type, flags: Long = 0L): MethodSymbol = {
+  private def newMethod(owner: Symbol, name: TermName, formals: List[Type], restpe: Type, flags: Long): MethodSymbol = {
     val msym   = owner.newMethod(name.encode, NoPosition, flags)
     val params = msym.newSyntheticValueParams(formals)
     msym setInfo MethodType(params, restpe)
@@ -670,6 +670,11 @@ trait Definitions extends api.StandardDefinitions {
       case _        => Nil
     }
 
+    def dropNullaryMethod(tp: Type) = tp match {
+      case NullaryMethodType(restpe) => restpe
+      case _                         => tp
+    }
+
     def unapplyUnwrap(tpe:Type) = tpe.finalResultType.normalize match {
       case RefinedType(p :: _, _) => p.normalize
       case tp                     => tp
@@ -861,6 +866,12 @@ trait Definitions extends api.StandardDefinitions {
         parents filterNot (_.typeSymbol eq ObjectClass)
       else
         removeRedundantObjects(parents)
+    }
+
+    /** Flatten curried parameter lists of a method type. */
+    def allParameters(tpe: Type): List[Symbol] = tpe match {
+      case MethodType(params, res) => params ::: allParameters(res)
+      case _                       => Nil
     }
 
     def typeStringNoPackage(tp: Type) =
@@ -1220,17 +1231,6 @@ trait Definitions extends api.StandardDefinitions {
       val etp = erasure(tp)
       if (etp.typeSymbol == ArrayClass) signature1(etp)
       else flatNameString(etp.typeSymbol, '.')
-    }
-
-   /** Surgery on the value classes.  Without this, AnyVals defined in source
-     *  files end up with an AnyRef parent.  It is likely there is a better way
-     *  to evade that AnyRef.
-     */
-    private def setParents(sym: Symbol, parents: List[Type]): Symbol = sym.rawInfo match {
-      case ClassInfoType(_, scope, clazz) =>
-        sym setInfo ClassInfoType(parents, scope, clazz)
-      case _ =>
-        sym
     }
 
     def init() {

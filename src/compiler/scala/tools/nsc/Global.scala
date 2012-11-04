@@ -12,7 +12,7 @@ import scala.tools.util.PathResolver
 import scala.collection.{ mutable, immutable }
 import io.{ SourceReader, AbstractFile, Path }
 import reporters.{ Reporter, ConsoleReporter }
-import util.{ Exceptional, ClassPath, MergedClassPath, StatisticsInfo, ScalaClassLoader, returning }
+import util.{ Exceptional, ClassPath, MergedClassPath, StatisticsInfo, ScalaClassLoader, returning, stackTraceString }
 import scala.reflect.internal.util.{ NoPosition, OffsetPosition, SourceFile, NoSourceFile, BatchSourceFile, ScriptSourceFile }
 import scala.reflect.internal.pickling.{ PickleBuffer, PickleFormat }
 import symtab.{ Flags, SymbolTable, SymbolLoaders, SymbolTrackers }
@@ -1046,9 +1046,13 @@ class Global(var currentSettings: Settings, var reporter: Reporter)
   def currentUnit: CompilationUnit = if (currentRun eq null) NoCompilationUnit else currentRun.currentUnit
   def currentSource: SourceFile    = if (currentUnit.exists) currentUnit.source else lastSeenSourceFile
 
+  def isGlobalInitialized = (
+       definitions.isDefinitionsInitialized
+    && rootMirror.isMirrorInitialized
+  )
   override def isPastTyper = (
        (curRun ne null)
-    && (currentRun.typerPhase ne null)
+    && isGlobalInitialized // defense against init order issues
     && (globalPhase.id > currentRun.typerPhase.id)
   )
 
@@ -1189,9 +1193,6 @@ class Global(var currentSettings: Settings, var reporter: Reporter)
 
     /** Has any macro expansion used a fallback during this run? */
     var seenMacroExpansionsFallingBack = false
-
-    /** To be initialized from firstPhase. */
-    private var terminalPhase: Phase = NoPhase
 
     private val unitbuf = new mutable.ListBuffer[CompilationUnit]
     val compiledFiles   = new mutable.HashSet[String]
@@ -1525,13 +1526,10 @@ class Global(var currentSettings: Settings, var reporter: Reporter)
     def compileUnits(units: List[CompilationUnit], fromPhase: Phase) {
       try compileUnitsInternal(units, fromPhase)
       catch { case ex: Throwable =>
-        val shown = if (settings.verbose.value) {
-          val sw = new java.io.StringWriter()
-          val pw = new java.io.PrintWriter(sw)
-          ex.printStackTrace(pw)
-          pw.flush()
-          sw.toString
-        } else ex.getClass.getName
+        val shown = if (settings.verbose.value)
+           stackTraceString(ex)
+         else
+           ex.getClass.getName
         // ex.printStackTrace(Console.out) // DEBUG for fsc, note that error stacktraces do not print in fsc
         globalError(supplementErrorMessage("uncaught exception during compilation: " + shown))
         throw ex

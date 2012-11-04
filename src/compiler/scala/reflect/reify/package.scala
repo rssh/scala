@@ -1,11 +1,11 @@
 package scala.reflect
 
 import scala.language.implicitConversions
-import scala.reflect.macros.{Context, ReificationError, UnexpectedReificationError}
+import scala.reflect.macros.{Context, ReificationException, UnexpectedReificationException}
 import scala.tools.nsc.Global
 
 package object reify {
-  private def mkReifier(global1: Global)(typer: global1.analyzer.Typer, universe: global1.Tree, mirror: global1.Tree, reifee: Any, concrete: Boolean = false): Reifier { val global: global1.type } = {
+  private def mkReifier(global1: Global)(typer: global1.analyzer.Typer, universe: global1.Tree, mirror: global1.Tree, reifee: Any, concrete: Boolean): Reifier { val global: global1.type } = {
     val typer1: typer.type = typer
     val universe1: universe.type = universe
     val mirror1: mirror.type = mirror
@@ -53,7 +53,7 @@ package object reify {
     if (tpe.isSpliceable) {
       val classTagInScope = typer0.resolveClassTag(enclosingMacroPosition, tpe, allowMaterialization = false)
       if (!classTagInScope.isEmpty) return Select(classTagInScope, nme.runtimeClass)
-      if (concrete) throw new ReificationError(enclosingMacroPosition, "tpe %s is an unresolved spliceable type".format(tpe))
+      if (concrete) throw new ReificationException(enclosingMacroPosition, "tpe %s is an unresolved spliceable type".format(tpe))
     }
 
     tpe.normalize match {

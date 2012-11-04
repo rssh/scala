@@ -28,8 +28,14 @@ class ModelFactory(val global: Global, val settings: doc.Settings) {
                with MemberLookup =>
 
   import global._
-  import definitions.{ ObjectClass, NothingClass, AnyClass, AnyValClass, AnyRefClass }
+  import definitions.{ ObjectClass, NothingClass, AnyClass, AnyValClass, AnyRefClass, ListClass }
   import rootMirror.{ RootPackage, RootClass, EmptyPackage }
+
+  // Defaults for member grouping, that may be overridden by the template
+  val defaultGroup = "Ungrouped"
+  val defaultGroupName = "Ungrouped"
+  val defaultGroupDesc = None
+  val defaultGroupPriority = 1000
 
   def templatesCount = docTemplatesCache.count(_._2.isDocTemplate) - droppedPackages.size
 
@@ -37,18 +43,9 @@ class ModelFactory(val global: Global, val settings: doc.Settings) {
   def modelFinished: Boolean = _modelFinished
   private var universe: Universe = null
 
-  private def dbg(msg: String) = if (sys.props contains "scala.scaladoc.debug") println(msg)
   protected def closestPackage(sym: Symbol) = {
     if (sym.isPackage || sym.isPackageClass) sym
     else sym.enclosingPackage
-  }
-
-  private def printWithoutPrefix(memberSym: Symbol, templateSym: Symbol) = {
-    dbg(
-      "memberSym " + memberSym + " templateSym " + templateSym + " encls = " +
-      closestPackage(memberSym) + ", " + closestPackage(templateSym)
-    )
-    memberSym.isOmittablePrefix || (closestPackage(memberSym) == closestPackage(templateSym))
   }
 
   def makeModel: Option[Universe] = {
@@ -121,7 +118,7 @@ class ModelFactory(val global: Global, val settings: doc.Settings) {
       }
       if (inTpl != null) thisFactory.comment(sym, thisTpl, inTpl) else None
     }
-    def group = comment flatMap (_.group) getOrElse "No Group"
+    def group = comment flatMap (_.group) getOrElse defaultGroup
     override def inTemplate = inTpl
     override def toRoot: List[MemberImpl] = this :: inTpl.toRoot
     def inDefinitionTemplates =
@@ -284,7 +281,8 @@ class ModelFactory(val global: Global, val settings: doc.Settings) {
         val tps = (this match {
           case a: AliasType => sym.tpe.dealias.parents
           case a: AbstractType => sym.info.bounds match {
-            case TypeBounds(lo, hi) => List(hi)
+            case TypeBounds(lo, RefinedType(parents, decls)) => parents
+            case TypeBounds(lo, hi) => hi :: Nil
             case _ => Nil
           }
           case _ => sym.tpe.parents
@@ -484,14 +482,28 @@ class ModelFactory(val global: Global, val settings: doc.Settings) {
     def inheritanceDiagram = makeInheritanceDiagram(this)
     def contentDiagram = makeContentDiagram(this)
 
-    def groupSearch[T](extractor: Comment => Option[T]): Option[T] = {
-      val comments = comment +: linearizationTemplates.collect { case dtpl: DocTemplateImpl => dtpl.comment }
-      comments.flatten.map(extractor).flatten.headOption
+    def groupSearch[T](extractor: Comment => T, default: T): T = {
+      // query this template
+      if (comment.isDefined) {
+        val entity = extractor(comment.get)
+        if (entity != default) return entity
+      }
+      // query linearization
+      if (!sym.isPackage)
+        for (tpl <- linearizationTemplates.collect{ case dtpl: DocTemplateImpl if dtpl!=this => dtpl}) {
+          val entity = tpl.groupSearch(extractor, default)
+          if (entity != default) return entity
+        }
+      // query inTpl, going up the ownerChain
+      if (inTpl != null)
+        inTpl.groupSearch(extractor, default)
+      else
+        default
     }
 
-    def groupDescription(group: String): Option[Body] = groupSearch(_.groupDesc.get(group))
-    def groupPriority(group: String): Int = groupSearch(_.groupPrio.get(group)) getOrElse 0
-    def groupName(group: String): String = groupSearch(_.groupNames.get(group)) getOrElse group
+    def groupDescription(group: String): Option[Body] = groupSearch(_.groupDesc.get(group), if (group == defaultGroup) defaultGroupDesc else None)
+    def groupPriority(group: String): Int = groupSearch(_.groupPrio.get(group) match { case Some(prio) => prio; case _ => 0 }, if (group == defaultGroup) defaultGroupPriority else 0)
+    def groupName(group: String): String = groupSearch(_.groupNames.get(group) match { case Some(name) => name; case _ => group }, if (group == defaultGroup) defaultGroupName else group)
   }
 
   abstract class PackageImpl(sym: Symbol, inTpl: PackageImpl) extends DocTemplateImpl(sym, inTpl) with Package {
@@ -721,7 +733,7 @@ class ModelFactory(val global: Global, val settings: doc.Settings) {
           }
       else {
         // no class inheritance at this point
-        assert(inOriginalOwner(bSym, inTpl) || bSym.isAbstractType || bSym.isAliasType, bSym + " in " + inTpl)
+        assert(inOriginalOwner(bSym, inTpl), bSym + " in " + inTpl)
         Some(createDocTemplate(bSym, inTpl))
       }
     }
@@ -817,7 +829,7 @@ class ModelFactory(val global: Global, val settings: doc.Settings) {
         Some(new MemberTemplateImpl(bSym, inTpl) with AliasImpl with AliasType {
           override def isAliasType = true
         })
-      else if (!modelFinished && (bSym.isPackage || bSym.isAliasType || bSym.isAbstractType || templateShouldDocument(bSym, inTpl)))
+      else if (!modelFinished && (bSym.isPackage || templateShouldDocument(bSym, inTpl)))
         modelCreation.createTemplate(bSym, inTpl)
       else
         None
@@ -1016,8 +1028,8 @@ class ModelFactory(val global: Global, val settings: doc.Settings) {
   def inOriginalOwner(aSym: Symbol, inTpl: TemplateImpl): Boolean =
     normalizeTemplate(aSym.owner) == normalizeTemplate(inTpl.sym)
 
-  def templateShouldDocument(aSym: Symbol, inTpl: TemplateImpl): Boolean =
-    (aSym.isTrait || aSym.isClass || aSym.isModule) &&
+  def templateShouldDocument(aSym: Symbol, inTpl: DocTemplateImpl): Boolean =
+    (aSym.isTrait || aSym.isClass || aSym.isModule || typeShouldDocument(aSym, inTpl)) &&
     localShouldDocument(aSym) &&
     !isEmptyJavaObject(aSym) &&
     // either it's inside the original owner or we can document it later:
@@ -1057,15 +1069,31 @@ class ModelFactory(val global: Global, val settings: doc.Settings) {
   // whether or not to create a page for an {abstract,alias} type
   def typeShouldDocument(bSym: Symbol, inTpl: DocTemplateImpl) =
     (settings.docExpandAllTypes.value && (bSym.sourceFile != null)) ||
+    (bSym.isAliasType || bSym.isAbstractType) &&
     { val rawComment = global.expandedDocComment(bSym, inTpl.sym)
       rawComment.contains("@template") || rawComment.contains("@documentable") }
 
-  def findExternalLink(name: String): Option[LinkTo] =
-    settings.extUrlMapping find {
-      case (pkg, _) => name startsWith pkg
-    } map {
-      case (_, url) => LinkToExternal(name, url + "#" + name)
+  def findExternalLink(sym: Symbol, name: String): Option[LinkTo] = {
+    val sym1 =
+      if (sym == AnyClass || sym == AnyRefClass || sym == AnyValClass || sym == NothingClass) ListClass
+      else if (sym.isPackage) 
+        /* Get package object which has associatedFile ne null */
+        sym.info.member(newTermName("package"))
+      else sym
+    Option(sym1.associatedFile) flatMap (_.underlyingSource) flatMap { src =>
+      val path = src.path
+      settings.extUrlMapping get path map { url =>
+        LinkToExternal(name, url + "#" + name)
+      }
+    } orElse {
+      // Deprecated option.
+      settings.extUrlPackageMapping find {
+        case (pkg, _) => name startsWith pkg
+      } map {
+        case (_, url) => LinkToExternal(name, url + "#" + name)
+      }
     }
+  }
 
   def externalSignature(sym: Symbol) = {
     sym.info // force it, otherwise we see lazy types

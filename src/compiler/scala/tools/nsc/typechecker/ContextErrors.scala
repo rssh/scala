@@ -674,7 +674,7 @@ trait ContextErrors {
       // same reason as for MacroBodyTypecheckException
       case object MacroExpansionException extends Exception with scala.util.control.ControlThrowable
 
-      private def macroExpansionError(expandee: Tree, msg: String = null, pos: Position = NoPosition) = {
+      private def macroExpansionError(expandee: Tree, msg: String, pos: Position = NoPosition) = {
         def msgForLog = if (msg != null && (msg contains "exception during macro expansion")) msg.split(EOL).drop(1).headOption.getOrElse("?") else msg
         macroLogLite("macro expansion has failed: %s".format(msgForLog))
         val errorPos = if (pos != NoPosition) pos else (if (expandee.pos != NoPosition) expandee.pos else enclosingMacroPosition)
@@ -806,7 +806,10 @@ trait ContextErrors {
           )
         }
 
-      def AccessError(tree: Tree, sym: Symbol, pre: Type, owner0: Symbol, explanation: String) = {
+      def AccessError(tree: Tree, sym: Symbol, ctx: Context, explanation: String): AbsTypeError =
+        AccessError(tree, sym, ctx.enclClass.owner.thisType, ctx.enclClass.owner, explanation)
+
+      def AccessError(tree: Tree, sym: Symbol, pre: Type, owner0: Symbol, explanation: String): AbsTypeError = {
         def errMsg = {
           val location = if (sym.isClassConstructor) owner0 else pre.widen.directObjectString
 
@@ -839,7 +842,7 @@ trait ContextErrors {
 
       // side-effect on the tree, break the overloaded type cycle in infer
       private def setErrorOnLastTry(lastTry: Boolean, tree: Tree) = if (lastTry) setError(tree)
-      
+
       def NoBestMethodAlternativeError(tree: Tree, argtpes: List[Type], pt: Type, lastTry: Boolean) = {
         issueNormalTypeError(tree,
           applyErrorMsg(tree, " cannot be applied to ", argtpes, pt))
@@ -852,7 +855,7 @@ trait ContextErrors {
 
       def AmbiguousMethodAlternativeError(tree: Tree, pre: Type, best: Symbol,
             firstCompeting: Symbol, argtpes: List[Type], pt: Type, lastTry: Boolean) = {
-        
+
         if (!(argtpes exists (_.isErroneous)) && !pt.isErroneous) {
           val msg0 =
             "argument types " + argtpes.mkString("(", ",", ")") +
@@ -862,7 +865,7 @@ trait ContextErrors {
           setErrorOnLastTry(lastTry, tree)
         } else setError(tree) // do not even try further attempts because they should all fail
                               // even if this is not the last attempt (because of the SO's possibility on the horizon)
-        
+
       }
 
       def NoBestExprAlternativeError(tree: Tree, pt: Type, lastTry: Boolean) = {
@@ -1195,7 +1198,7 @@ trait ContextErrors {
         setError(arg)
       } else arg
     }
-    
+
     def WarnAfterNonSilentRecursiveInference(param: Symbol, arg: Tree)(implicit context: Context) = {
       val note = "type-checking the invocation of "+ param.owner +" checks if the named argument expression '"+ param.name + " = ...' is a valid assignment\n"+
                  "in the current scope. The resulting type inference error (see above) can be fixed by providing an explicit type in the local definition for "+ param.name +"."
