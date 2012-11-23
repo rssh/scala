@@ -238,6 +238,7 @@ class ModelFactory(val global: Global, val settings: doc.Settings) {
     def isShadowedImplicit    = false
     def isAmbiguousImplicit   = false
     def isShadowedOrAmbiguousImplicit = false
+    def isExportedImport      = false
   }
 
   /** A template that is not documented at all. The class is instantiated during lookups, to indicate that the class
@@ -394,6 +395,7 @@ class ModelFactory(val global: Global, val settings: doc.Settings) {
     def values          = members collect { case v: Val => v }
     def abstractTypes   = members collect { case t: AbstractType => t }
     def aliasTypes      = members collect { case t: AliasType => t }
+    def exportedImports = members collect { case i: ExportedImportEntity => i }
 
     /**
      * This is the final point in the core model creation: no DocTemplates are created after the model has finished, but
@@ -596,6 +598,34 @@ class ModelFactory(val global: Global, val settings: doc.Settings) {
     def typeParams =
       sym.typeParams map (makeTypeParam(_, inTpl))
   }
+
+
+  class ExportedImportEntityImpl(sym: ImportSymbol,
+                                        inTpl: DocTemplateImpl)
+               extends NonTemplateMemberImpl(sym,None,None,inTpl)
+                 with ExportedImportEntity
+  {
+
+   override def isExportedImport = true
+
+   def base: TypeEntity = makeTypeInTemplateContext(sym.base, inTpl, sym)
+
+   def isWildcard: Boolean = sym.selectors.find(_._1==nme.WILDCARD).isDefined
+
+   lazy val selectors: List[ImportSelectorDoc] =
+         sym.selectors.map(new ImportSelectorDocImpl(_))
+
+  }
+
+  class ImportSelectorDocImpl(p: Pair[Name,Name]) extends ImportSelectorDoc
+  {
+
+     def from = p._1.decoded
+
+     def to = if (p._2 == null) "" else p._2.decoded
+
+  }
+
   /* ============== MAKER METHODS ============== */
 
   /** This method makes it easier to work with the different kinds of symbols created by scalac by stripping down the
@@ -775,6 +805,7 @@ class ModelFactory(val global: Global, val settings: doc.Settings) {
             createNoDocMemberTemplate(bSym, inTpl)
         }
     }
+
   }
 
   def makeRootPackage: PackageImpl = docTemplatesCache(RootPackage).asInstanceOf[PackageImpl]
@@ -831,6 +862,8 @@ class ModelFactory(val global: Global, val settings: doc.Settings) {
         })
       else if (!modelFinished && (bSym.isPackage || templateShouldDocument(bSym, inTpl)))
         modelCreation.createTemplate(bSym, inTpl)
+      else if (bSym.isImport)
+        Some(new ExportedImportEntityImpl(bSym.asInstanceOf[ImportSymbol], inTpl))
       else
         None
     }

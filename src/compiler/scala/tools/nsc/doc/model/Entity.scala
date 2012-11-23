@@ -21,7 +21,8 @@ import diagram._
   *  - values, lazy values, and variables;
   *  - abstract type members and type aliases;
   *  - type and value parameters;
-  *  - annotations. */
+  *  - annotations;
+  *  - exported imports. */
 trait Entity {
 
   /** Similar to symbols, so we can track entities */
@@ -62,6 +63,7 @@ trait Entity {
 
   /** Indicates whether this entity lives in the terms namespace (objects, packages, methods, values) */
   def isTerm: Boolean
+
 }
 
 object Entity {
@@ -208,6 +210,10 @@ trait MemberEntity extends Entity {
 
   /** Indicates whether the implicitly inherited member is shadowed or ambiguous in its template */
   def isShadowedOrAmbiguousImplicit: Boolean
+
+  /** Whether this member is exported import */
+  def isExportedImport: Boolean
+
 }
 
 object MemberEntity {
@@ -626,3 +632,29 @@ trait UpperBoundedTypeParamConstraint extends TypeParamConstraint {
   override def toString = typeParamName + " is a subclass of " + upperBound.name + " (" + typeParamName + " <: " +
     upperBound.name + ")"
 }
+
+trait ExportedImportEntity extends NonTemplateMemberEntity
+{
+
+  def base: TypeEntity
+
+  def selectors: List[ImportSelectorDoc]
+
+  def isWildcard: Boolean
+
+  def kind: String = "import"
+
+}
+
+trait ImportSelectorDoc
+{
+
+  /** name of symbol which is imported. "_" in case of wildcard import */
+  def from: String
+
+  /** imported named if differ from original. 
+   *  If name is not changed - empty string */
+  def to: String
+
+}
+
