@@ -378,7 +378,8 @@ class ModelFactory(val global: Global, val settings: doc.Settings) {
       if (settings.docImplicits.value) makeImplicitConversions(sym, this) else Nil
 
     // members as given by the compiler
-    lazy val memberSyms      = sym.info.members.filter(s => membersShouldDocument(s, this)).toList
+    lazy val memberSyms      =  sym.info.members.filter(s => membersShouldDocument(s, this)).toList
+      
 
     // the inherited templates (classes, traits or objects)
     var memberSymsLazy  = memberSyms.filter(t => templateShouldDocument(t, this) && !inOriginalOwner(t, this))
@@ -388,7 +389,7 @@ class ModelFactory(val global: Global, val settings: doc.Settings) {
     val ownMembers      = (memberSymsEager.flatMap(makeMember(_, None, this)))
 
     // all the members that are documentented PLUS the members inherited by implicit conversions
-    var members: List[MemberImpl] = ownMembers
+    var members: List[MemberImpl] = ownMembers 
 
     def templates       = members collect { case c: TemplateEntity with MemberEntity => c }
     def methods         = members collect { case d: Def => d }

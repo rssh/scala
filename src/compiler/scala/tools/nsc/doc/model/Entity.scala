@@ -331,6 +331,10 @@ trait DocTemplateEntity extends MemberTemplateEntity {
       NOTE: Some classes might not be included in the scaladoc run so they will be NoDocTemplateEntities */
   def outgoingImplicitlyConvertedClasses: List[(TemplateEntity, TypeEntity, ImplicitConversion)]
 
+  /** List of all exported imports */
+  def exportedImports: List[ExportedImportEntity]
+
+
   /** If this template takes place in inheritance and implicit conversion relations, it will be shown in this diagram */
   def inheritanceDiagram: Option[Diagram]
 

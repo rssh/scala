@@ -635,6 +635,18 @@ class Template(universe: doc.Universe, generator: DiagramGenerator, tpl: DocTemp
       case _ => NodeSeq.Empty
     }
 
+    val exportedImports = mbr match {
+      case dtpl: DocTemplateEntity if isSelf && !isReduced && dtpl.exportedImports.nonEmpty =>
+        <div class="toggleContainer block">
+          <span class="toggle">Exported Imports</span>
+          <div class="exportedImports hiddenContent">{
+            // !!!
+            Text(dtpl.exportedImports.toString)
+          }</div>
+        </div>
+      case _ => NodeSeq.Empty
+    }
+
     val subclasses = mbr match {
       case dtpl: DocTemplateEntity if isSelf && !isReduced && dtpl.allSubClasses.nonEmpty =>
         <div class="toggleContainer block">
@@ -669,7 +681,7 @@ class Template(universe: doc.Universe, generator: DiagramGenerator, tpl: DocTemp
     val typeHierarchy = createDiagram(_.inheritanceDiagram, "Type Hierarchy", "inheritance-diagram")
     val contentHierarchy = createDiagram(_.contentDiagram, "Content Hierarchy", "content-diagram")
 
-    memberComment ++ paramComments ++ attributesBlock ++ linearization ++ subclasses ++ typeHierarchy ++ contentHierarchy
+    memberComment ++ paramComments ++ attributesBlock ++ linearization ++ subclasses ++ typeHierarchy ++ contentHierarchy ++ exportedImports
   }
 
   def boundsToHtml(hi: Option[TypeEntity], lo: Option[TypeEntity], hasLinks: Boolean): NodeSeq = {
