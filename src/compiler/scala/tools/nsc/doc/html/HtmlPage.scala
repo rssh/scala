@@ -206,6 +206,24 @@ abstract class HtmlPage extends Page { thisPage =>
     case tpl :: tpls => templateToHtml(tpl) ++ sep ++ templatesToHtml(tpls, sep)
   }
 
+  /** Returns the HTML code that represents exported import in `tpl` as a hyperlinked name. */
+  def exportedImportToHtml(ei: ExportedImportEntity): NodeSeq = 
+     typeToHtml(ei.base,true) ++ (ei.selectors map { sel =>
+                                    if (sel.to.nonEmpty) 
+                                      // todo: make to links to approriative symbols.
+                                      <span class="import-selectors">{sel.from} => {sel.to}</span>
+                                     else 
+                                      <span class="import-selectors">{sel.from}</span>
+                                 })
+  
+
+  def exportedImportsToHtml(eiss: List[ExportedImportEntity], sep: NodeSeq): NodeSeq = eiss match {
+    case Nil       => NodeSeq.Empty
+    case ei :: Nil => exportedImportToHtml(ei)
+    case ei :: eis => exportedImportToHtml(ei) ++ sep ++ exportedImportsToHtml(eis, sep)
+  }
+
+
   /** Returns the _big image name corresponding to the DocTemplate Entity (upper left icon) */
   def docEntityKindToBigImage(ety: DocTemplateEntity) =
     if (ety.isTrait && !ety.companion.isEmpty && ety.companion.get.visibility.isPublic && ety.companion.get.inSource != None) "trait_to_object_big.png"

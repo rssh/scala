@@ -636,12 +636,12 @@ class Template(universe: doc.Universe, generator: DiagramGenerator, tpl: DocTemp
     }
 
     val exportedImports = mbr match {
+      //  TODO: get from dtpl fill deep exported imports/
       case dtpl: DocTemplateEntity if isSelf && !isReduced && dtpl.exportedImports.nonEmpty =>
         <div class="toggleContainer block">
           <span class="toggle">Exported Imports</span>
           <div class="exportedImports hiddenContent">{
-            // !!!
-            Text(dtpl.exportedImports.toString)
+            exportedImportsToHtml(dtpl.exportedImports, sep = scala.xml.Text(", "))
           }</div>
         </div>
       case _ => NodeSeq.Empty
