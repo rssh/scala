@@ -640,7 +640,8 @@ trait UpperBoundedTypeParamConstraint extends TypeParamConstraint {
 trait ExportedImportEntity extends NonTemplateMemberEntity
 {
 
-  def base: TypeEntity
+  //def base: TypeEntity
+  def base: TemplateEntity
 
   def selectors: List[ImportSelectorDoc]
 
@@ -655,6 +656,9 @@ trait ImportSelectorDoc
 
   /** name of symbol which is imported. "_" in case of wildcard import */
   def from: String
+
+  ///** link to 'from' member (member if we have a name, or base if wildcard */
+  //def fromLink: LinkTo
 
   /** imported named if differ from original. 
    *  If name is not changed - empty string */

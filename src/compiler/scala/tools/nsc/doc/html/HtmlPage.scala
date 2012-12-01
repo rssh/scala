@@ -208,7 +208,7 @@ abstract class HtmlPage extends Page { thisPage =>
 
   /** Returns the HTML code that represents exported import in `tpl` as a hyperlinked name. */
   def exportedImportToHtml(ei: ExportedImportEntity): NodeSeq = 
-     typeToHtml(ei.base,true) ++ (ei.selectors map { sel =>
+     templateToHtml(ei.base) ++ (ei.selectors map { sel =>
                                     if (sel.to.nonEmpty) 
                                       // todo: make to links to approriative symbols.
                                       <span class="import-selectors">{sel.from} => {sel.to}</span>

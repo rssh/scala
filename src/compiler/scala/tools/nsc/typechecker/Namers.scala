@@ -335,12 +335,23 @@ trait Namers extends MethodSynthesis {
                                          else
                                            (NoSymbol, rtrack)
 
+                                       override def exportedImports =
+                                         if (underlying ne null) {
+                                           underlying.exportedImports
+                                         } else {
+                                           List()
+                                         }
+
+
+
                                       // the same 
                                       override def baseClasses =
                                          if (underlying ne null) 
                                             underlying.baseClasses
                                          else
                                             List()
+
+                                       
 
                                       
                                       override def safeToString = "<["+ 

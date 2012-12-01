@@ -609,7 +609,9 @@ class ModelFactory(val global: Global, val settings: doc.Settings) {
 
    override def isExportedImport = true
 
-   def base: TypeEntity = makeTypeInTemplateContext(sym.base, inTpl, sym)
+   //def base: TypeEntity = makeTypeInTemplateContext(sym.base.underlying, inTpl, sym)
+
+   lazy val base: TemplateEntity = makeTemplate(sym.base.underlying.typeSymbol, Some(inTpl))
 
    def isWildcard: Boolean = sym.selectors.find(_._1==nme.WILDCARD).isDefined
 

@@ -333,10 +333,6 @@ trait Scopes extends api.Scopes { self: SymbolTable =>
 
     override def toString(): String = mkString("Scope{\n  ", ";\n  ", "\n}")
 
-    def implicitImports = lookupAll(nme.IMPORT) flatMap {
-                             case sym: ImportSymbol if (sym.isImplicit) => Some(sym)
-                          }
-
   }
 
   implicit val ScopeTag = ClassTag[Scope](classOf[Scope])
