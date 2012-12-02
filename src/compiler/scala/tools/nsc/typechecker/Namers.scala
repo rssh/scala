@@ -319,12 +319,23 @@ trait Namers extends MethodSynthesis {
     private def createImportSymbol(tree: Tree) = {
       tree match {
         case Import(expr,selectors,annotations) =>
-           NoSymbol.newImport(tree.pos, 
+           val lazyType = completerOf(tree)
+           lazy val retval: Symbol = NoSymbol.newImport(tree.pos,
                                  new SimpleTypeProxy {
+                                      var inCompleter = false
 
                                       //  expr.tpe will be set after call of completerOf to
                                       //  import tree, so use proxy for deffering
-                                      override def underlying: Type = expr.tpe
+                                      override def underlying: Type = {
+                                         if (expr.tpe == null) {
+                                           if (!inCompleter) {
+                                            inCompleter = true
+                                            lazyType.complete(retval)
+                                            inCompleter = false
+                                           }
+                                         }
+                                         expr.tpe
+                                      }
 
                                       // can be called from completerOf before initializing of tpe
                                       // when resolving annotations in this import.
@@ -351,8 +362,6 @@ trait Namers extends MethodSynthesis {
                                          else
                                             List()
 
-                                       
-
                                       
                                       override def safeToString = "<["+ 
                                             (if (underlying ne null) 
@@ -363,9 +372,8 @@ trait Namers extends MethodSynthesis {
                                selectors.map(x=>(x.name,x.rename))
                              ) withAnnotations(
                                  annotations map( ann => AnnotationInfo lazily enteringTyper(typer typedAnnotation ann))
-                             ) setInfo completerOf(
-                                 tree
-                             )
+                             ) setInfo lazyType
+           retval
       }
     }
 

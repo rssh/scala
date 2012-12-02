@@ -1001,7 +1001,7 @@ trait Contexts { self: Analyzer =>
     override def toString() = tree.toString()
   }
 
-  case class ImportType(expr: Tree) extends Type {
+  case class ImportType(val expr: Tree) extends Type {
     override def safeToString = "ImportType("+expr+")"
   }
 }
