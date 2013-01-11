@@ -211,9 +211,9 @@ abstract class HtmlPage extends Page { thisPage =>
      templateToHtml(ei.base) ++ (ei.selectors map { sel =>
                                     if (sel.to.nonEmpty) 
                                       // todo: make to links to approriative symbols.
-                                      <span class="import-selectors">{sel.from} => {sel.to}</span>
+                                      <span class="import-selectors">.{{ {sel.from} => {sel.to} }}</span>
                                      else 
-                                      <span class="import-selectors">{sel.from}</span>
+                                      <span class="import-selectors">.{sel.from}</span>
                                  })
   
 
