@@ -107,6 +107,7 @@ trait TemplateEntity extends Entity {
 
   /** The self-type of this template, if it differs from the template type. */
   def selfType : Option[TypeEntity]
+
 }
 
 
@@ -333,7 +334,6 @@ trait DocTemplateEntity extends MemberTemplateEntity {
 
   /** List of all exported imports */
   def exportedImports: List[ExportedImportEntity]
-
 
   /** If this template takes place in inheritance and implicit conversion relations, it will be shown in this diagram */
   def inheritanceDiagram: Option[Diagram]
@@ -640,7 +640,6 @@ trait UpperBoundedTypeParamConstraint extends TypeParamConstraint {
 trait ExportedImportEntity extends NonTemplateMemberEntity
 {
 
-  //def base: TypeEntity
   def base: TemplateEntity
 
   def selectors: List[ImportSelectorDoc]
@@ -648,6 +647,8 @@ trait ExportedImportEntity extends NonTemplateMemberEntity
   def isWildcard: Boolean
 
   def kind: String = "import"
+
+  def withIndirect: Set[ExportedImportEntity]
 
 }
 

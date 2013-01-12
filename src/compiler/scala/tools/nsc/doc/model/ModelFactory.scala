@@ -396,7 +396,10 @@ class ModelFactory(val global: Global, val settings: doc.Settings) {
     def values          = members collect { case v: Val => v }
     def abstractTypes   = members collect { case t: AbstractType => t }
     def aliasTypes      = members collect { case t: AliasType => t }
-    def exportedImports = members collect { case i: ExportedImportEntity => i }
+
+    lazy val ownExportedImports = ownMembers collect { case i: ExportedImportEntity => i }
+    lazy val exportedImports = (for(m <- ownExportedImports;
+                                     i <- m.withIndirect) yield i).toList
 
     /**
      * This is the final point in the core model creation: no DocTemplates are created after the model has finished, but
@@ -613,10 +616,24 @@ class ModelFactory(val global: Global, val settings: doc.Settings) {
 
    lazy val base: TemplateEntity = makeTemplate(sym.base.underlying.typeSymbol, Some(inTpl))
 
-   def isWildcard: Boolean = sym.selectors.find(_._1==nme.WILDCARD).isDefined
+   def isWildcard: Boolean = isWildcard(sym)
+
+   def isWildcard(sym: ImportSymbol): Boolean = sym.selectors.find(_._1==nme.WILDCARD).isDefined
 
    lazy val selectors: List[ImportSelectorDoc] =
          sym.selectors.map(new ImportSelectorDocImpl(_))
+
+   def  withIndirect: Set[ExportedImportEntity] =
+         collectIndirect(sym,Set(sym)) map (new ExportedImportEntityImpl(_,inTpl))
+
+   def  collectIndirect(sym: ImportSymbol, processed: Set[ImportSymbol]):Set[ImportSymbol] =
+     if (isWildcard(sym)) {
+       val toAdd = sym.base.exportedImports
+       toAdd.foldLeft(processed)((p,s) => if (p.contains(s)) p else 
+                                             collectIndirect(s,p+s)
+                                )
+     } else 
+       processed
 
   }
 
