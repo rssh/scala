@@ -1,6 +1,6 @@
 /*                     __                                               *\
 **     ________ ___   / /  ___     Scala API                            **
-**    / __/ __// _ | / /  / _ |    (c) 2006-2011, LAMP/EPFL             **
+**    / __/ __// _ | / /  / _ |    (c) 2006-2013, LAMP/EPFL             **
 **  __\ \/ /__/ __ |/ /__/ __ |    http://www.scala-lang.org/           **
 ** /____/\___/_/ |_/____/_/ | |                                         **
 **                          |/                                          **
@@ -8,13 +8,11 @@
 
 package scala.collection
 
-import java.{ lang => jl, util => ju }, java.util.{ concurrent => juc }
 import convert._
 
 // TODO: I cleaned all this documentation up in JavaConversions, but the
 // documentation in here is basically the pre-cleaned-up version with minor
 // additions.  Would be nice to have in one place.
-
 
 /** A collection of decorators that allow converting between
  *  Scala and Java collections using `asScala` and `asJava` methods.

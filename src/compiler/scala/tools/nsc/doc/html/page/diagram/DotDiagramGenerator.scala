@@ -10,7 +10,6 @@ package diagram
 
 import scala.xml.{NodeSeq, XML, PrefixedAttribute, Elem, MetaData, Null, UnprefixedAttribute}
 import scala.collection.immutable._
-import javax.xml.parsers.SAXParser
 import model._
 import model.diagram._
 
@@ -71,7 +70,7 @@ class DotDiagramGenerator(settings: doc.Settings) extends DiagramGenerator {
         def textTypeEntity(text: String) =
           new TypeEntity {
             val name = text
-            def refEntity: SortedMap[Int, (LinkTo, Int)] = SortedMap()
+            def refEntity: SortedMap[Int, (base.LinkTo, Int)] = SortedMap()
           }
 
         // it seems dot chokes on node names over 8000 chars, so let's limit the size of the string
@@ -211,7 +210,7 @@ class DotDiagramGenerator(settings: doc.Settings) extends DiagramGenerator {
     def escape(name: String) = name.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
 
     // assemble node attribues in a map
-    var attr = scala.collection.mutable.Map[String, String]()
+    val attr = scala.collection.mutable.Map[String, String]()
 
     // link
     node.doctpl match {

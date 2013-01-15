@@ -1,12 +1,11 @@
 /* NSC -- new Scala compiler
- * Copyright 2005-2012 LAMP/EPFL
+ * Copyright 2005-2013 LAMP/EPFL
  * @author  Paul Phillips
  */
 
 package scala.tools.nsc
 package symtab
 
-import scala.collection.{ mutable, immutable }
 import scala.language.implicitConversions
 import scala.language.postfixOps
 
@@ -110,7 +109,6 @@ trait SymbolTrackers {
         case Some(oldFlags) =>
           val added   = masked & ~oldFlags
           val removed = oldFlags & ~masked
-          val steady  = masked & ~(added | removed)
           val all     = masked | oldFlags
           val strs    = 0 to 63 map { bit =>
             val flag = 1L << bit
@@ -177,7 +175,7 @@ trait SymbolTrackers {
     }
     def show(label: String): String = {
       val hierarchy = Node(current)
-      val Change(added, removed, symMap, owners, flags) = history.head
+      val Change(_, removed, symMap, _, _) = history.head
       def detailString(sym: Symbol) = {
         val ownerString = sym.ownerChain splitAt 3 match {
           case (front, back) =>

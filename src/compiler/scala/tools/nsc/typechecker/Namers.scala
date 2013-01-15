@@ -1,5 +1,5 @@
 /* NSC -- new Scala compiler
- * Copyright 2005-2012 LAMP/EPFL
+ * Copyright 2005-2013 LAMP/EPFL
  * @author  Martin Odersky
  */
 
@@ -8,9 +8,7 @@ package typechecker
 
 import scala.collection.mutable
 import scala.annotation.tailrec
-import scala.ref.WeakReference
 import symtab.Flags._
-import scala.tools.nsc.io.AbstractFile
 
 /** This trait declares methods to create symbols and to enter them into scopes.
  *
@@ -305,11 +303,11 @@ trait Namers extends MethodSynthesis {
         case DefDef(_, nme.CONSTRUCTOR, _, _, _, _) => owner.newConstructor(pos, flags)
         case DefDef(_, _, _, _, _, _)               => owner.newMethod(name.toTermName, pos, flags)
         case ClassDef(_, _, _, _)                   => owner.newClassSymbol(name.toTypeName, pos, flags)
-        case ModuleDef(_, _, _)                     => owner.newModule(name, pos, flags)
+        case ModuleDef(_, _, _)                     => owner.newModule(name.toTermName, pos, flags)
         case PackageDef(pid, _)                     => createPackageSymbol(pos, pid)
         case ValDef(_, _, _, _)                     =>
-          if (isParameter) owner.newValueParameter(name, pos, flags)
-          else owner.newValue(name, pos, flags)
+          if (isParameter) owner.newValueParameter(name.toTermName, pos, flags)
+          else owner.newValue(name.toTermName, pos, flags)
       }
     }
     private def createFieldSymbol(tree: ValDef): TermSymbol =
@@ -399,11 +397,10 @@ trait Namers extends MethodSynthesis {
     }
 
     private def enterClassSymbol(tree: ClassDef, clazz: ClassSymbol): Symbol = {
-      val file = contextFile
       if (clazz.sourceFile != null && clazz.sourceFile != contextFile)
-        debugwarn("!!! Source mismatch in " + clazz + ": " + clazz.sourceFile + " vs. " + contextFile)
+        devWarning(s"Source file mismatch in $clazz: ${clazz.sourceFile} vs. $contextFile")
 
-      clazz.sourceFile = contextFile
+      clazz.associatedFile = contextFile
       if (clazz.sourceFile != null) {
         assert(currentRun.canRedefine(clazz) || clazz.sourceFile == currentRun.symSource(clazz), clazz.sourceFile)
         currentRun.symSource(clazz) = clazz.sourceFile
@@ -443,8 +440,8 @@ trait Namers extends MethodSynthesis {
       if (sym eq NoSymbol) return
 
       val ctx    = if (context.owner.isPackageObjectClass) context.outer else context
-      val module = if (sym.isModule) sym else ctx.scope lookup tree.name.toTermName
-      val clazz  = if (sym.isClass) sym else ctx.scope lookup tree.name.toTypeName
+      val module = if (sym.isModule) sym else ctx.scope lookupModule tree.name
+      val clazz  = if (sym.isClass) sym else ctx.scope lookupClass tree.name
       val fails  = (
            module.isModule
         && clazz.isClass
@@ -491,7 +488,7 @@ trait Namers extends MethodSynthesis {
         setPrivateWithin(tree, m.moduleClass)
       }
       if (m.owner.isPackageClass && !m.isPackage) {
-        m.moduleClass.sourceFile = contextFile
+        m.moduleClass.associatedFile = contextFile
         currentRun.symSource(m) = m.moduleClass.sourceFile
         registerTopLevelSym(m)
       }
@@ -705,7 +702,7 @@ trait Namers extends MethodSynthesis {
     }
 
     def enterClassDef(tree: ClassDef) {
-      val ClassDef(mods, name, tparams, impl) = tree
+      val ClassDef(mods, _, _, impl) = tree
       val primaryConstructorArity = treeInfo.firstConstructorArgs(impl.body).size
       tree.symbol = enterClassSymbol(tree)
       tree.symbol setInfo completerOf(tree)
@@ -939,16 +936,11 @@ trait Namers extends MethodSynthesis {
     private def templateSig(templ: Template): Type = {
       val clazz = context.owner
       def checkParent(tpt: Tree): Type = {
-        val tp = tpt.tpe
-        val inheritsSelf = tp.typeSymbol == owner
-        if (inheritsSelf)
-          InheritsItselfError(tpt)
-
-        if (inheritsSelf || tp.isError) AnyRefClass.tpe
-        else tp
+        if (tpt.tpe.isError) AnyRefClass.tpe
+        else tpt.tpe
       }
 
-      val parents = typer.parentTypes(templ) map checkParent
+      val parents = typer.typedParentTypes(templ) map checkParent
 
       enterSelf(templ.self)
 
@@ -974,11 +966,10 @@ trait Namers extends MethodSynthesis {
         val modClass = companionSymbolOf(clazz, context).moduleClass
         modClass.attachments.get[ClassForCaseCompanionAttachment] foreach { cma =>
           val cdef = cma.caseClass
-          def hasCopy(decls: Scope) = (decls lookup nme.copy) != NoSymbol
+          def hasCopy = (decls containsName nme.copy) || parents.exists(_ member nme.copy exists)
+
           // SI-5956 needs (cdef.symbol == clazz): there can be multiple class symbols with the same name
-          if (cdef.symbol == clazz && !hasCopy(decls) &&
-                  !parents.exists(p => hasCopy(p.typeSymbol.info.decls)) &&
-                  !parents.flatMap(_.baseClasses).distinct.exists(bc => hasCopy(bc.info.decls)))
+          if (cdef.symbol == clazz && !hasCopy)
             addCopyMethod(cdef, templateNamer)
         }
       }
@@ -1125,7 +1116,7 @@ trait Namers extends MethodSynthesis {
       // because @macroImpl annotation only gets assigned during typechecking
       // otherwise macro defs wouldn't be able to robustly coexist with their clients
       // because a client could be typechecked before a macro def that it uses
-      if (ddef.symbol.isTermMacro) {
+      if (ddef.symbol.isMacro) {
         val pt = resultPt.substSym(tparamSyms, tparams map (_.symbol))
         typer.computeMacroDefType(ddef, pt)
       }
@@ -1262,9 +1253,9 @@ trait Namers extends MethodSynthesis {
               // same local block several times (which can happen in interactive mode) we might
               // otherwise not find the default symbol, because the second time it the method
               // symbol will be re-entered in the scope but the default parameter will not.
-              val att = meth.attachments.get[DefaultsOfLocalMethodAttachment] match {
+              meth.attachments.get[DefaultsOfLocalMethodAttachment] match {
                 case Some(att) => att.defaultGetters += default
-                case None => meth.updateAttachment(new DefaultsOfLocalMethodAttachment(default))
+                case None      => meth.updateAttachment(new DefaultsOfLocalMethodAttachment(default))
               }
             }
           } else if (baseHasDefault) {
@@ -1351,8 +1342,12 @@ trait Namers extends MethodSynthesis {
         if (!annotated.isInitialized) tree match {
           case defn: MemberDef =>
             val ainfos = defn.mods.annotations filterNot (_ eq null) map { ann =>
-              // need to be lazy, #1782. enteringTyper to allow inferView in annotation args, SI-5892.
-              AnnotationInfo lazily enteringTyper(typer typedAnnotation ann)
+              // need to be lazy, #1782. beforeTyper to allow inferView in annotation args, SI-5892.
+              AnnotationInfo lazily {
+                val context1 = typer.context.make(ann)
+                context1.setReportErrors()
+                enteringTyper(newTyper(context1) typedAnnotation ann)
+              }
             }
             if (ainfos.nonEmpty) {
               annotated setAnnotations ainfos
@@ -1381,7 +1376,8 @@ trait Namers extends MethodSynthesis {
           if (clazz.isDerivedValueClass) {
             log("Ensuring companion for derived value class " + name + " at " + cdef.pos.show)
             clazz setFlag FINAL
-            enclosingNamerWithScope(clazz.owner.info.decls).ensureCompanionObject(cdef)
+            // Don't force the owner's info lest we create cycles as in SI-6357.
+            enclosingNamerWithScope(clazz.owner.rawInfo.decls).ensureCompanionObject(cdef)
           }
           result
 
@@ -1427,8 +1423,7 @@ trait Namers extends MethodSynthesis {
             transformed(tree) = newImport
             // copy symbol and type attributes back into old expression
             // so that the structure builder will find it.
-            expr.symbol = expr1.symbol
-            expr.tpe = expr1.tpe
+            expr setSymbol expr1.symbol setType expr1.tpe
             ImportType(expr1)
           }
       }
@@ -1451,12 +1446,6 @@ trait Namers extends MethodSynthesis {
         else ClassInfoType(parents :+ parent.tpe, decls, clazz)
       case _ =>
         tpe
-    }
-
-    def ensureParent(clazz: Symbol, parent: Symbol) = {
-      val info0 = clazz.info
-      val info1 = includeParent(info0, parent)
-      if (info0 ne info1) clazz setInfo info1
     }
 
     class LogTransitions[S](onEnter: S => String, onExit: S => String) {
@@ -1535,8 +1524,12 @@ trait Namers extends MethodSynthesis {
 
       if (sym.isConstructor && sym.isAnyOverride)
         fail(OverrideConstr)
-      if (sym.isAbstractOverride && !sym.owner.isTrait)
-        fail(AbstractOverride)
+      if (sym.isAbstractOverride) {
+          if (!sym.owner.isTrait)
+            fail(AbstractOverride)
+          if(sym.isType)
+            fail(AbstractOverrideOnTypeMember)
+      }
       if (sym.isLazy && sym.hasFlag(PRESUPER))
         fail(LazyAndEarlyInit)
       if (sym.info.typeSymbol == FunctionClass(0) && sym.isValueParameter && sym.owner.isCaseClass)

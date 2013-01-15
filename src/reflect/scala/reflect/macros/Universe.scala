@@ -1,7 +1,10 @@
 package scala.reflect
 package macros
 
-/** The refinement of [[scala.reflect.api.Universe]] for the use by macro writers.
+/**
+ * <span class="badge badge-red" style="float: right;">EXPERIMENTAL</span>
+ *
+ *  The refinement of [[scala.reflect.api.Universe]] for the use by macro writers.
  *
  *  This universe provides mutability for reflection artifacts (e.g. macros can change types of compiler trees,
  *  add annotation to symbols representing definitions, etc) and exposes some internal compiler functionality
@@ -111,7 +114,7 @@ abstract class Universe extends scala.reflect.api.Universe {
     def setPos(newpos: Position): Tree
 
     /** Sets the `tpe` of the tree. Returns `Unit`. */
-    def tpe_=(t: Type): Unit
+    @deprecated("Use setType", "2.11.0") def tpe_=(t: Type): Unit
 
     /** Sets the `tpe` of the tree. Returns the tree itself. */
     def setType(tp: Type): Tree

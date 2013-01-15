@@ -1,5 +1,5 @@
 /* NSC -- new Scala compiler
- * Copyright 2005-2012 LAMP/EPFL
+ * Copyright 2005-2013 LAMP/EPFL
  * @author  Paul Phillips
  */
 
@@ -13,15 +13,12 @@ import NameTransformer._
 import scala.reflect.runtime.{universe => ru}
 import scala.reflect.{ClassTag, classTag}
 import typechecker.DestructureTypes
-import scala.reflect.internal.util.StringOps.ojoin
-import scala.language.implicitConversions
 
 /** A more principled system for turning types into strings.
  */
 trait StructuredTypeStrings extends DestructureTypes {
   val global: Global
   import global._
-  import definitions._
 
   case class LabelAndType(label: String, typeName: String) { }
   object LabelAndType {
@@ -36,7 +33,6 @@ trait StructuredTypeStrings extends DestructureTypes {
   val NoGrouping      = Grouping("", "", "", false)
   val ListGrouping    = Grouping("(", ", ", ")", false)
   val ProductGrouping = Grouping("(", ", ", ")", true)
-  val ParamGrouping   = Grouping("(", ", ", ")", true)
   val BlockGrouping   = Grouping(" { ", "; ", "}", false)
 
   private def str(level: Int)(body: => String): String = "  " * level + body
@@ -48,7 +44,6 @@ trait StructuredTypeStrings extends DestructureTypes {
     l1 +: l2 :+ l3 mkString "\n"
   }
   private def maybeBlock(level: Int, grouping: Grouping)(name: String, nodes: List[TypeNode]): String = {
-    import grouping._
     val threshold = 70
 
     val try1 = str(level)(name + grouping.join(nodes map (_.show(0, grouping.labels)): _*))
@@ -193,7 +188,6 @@ trait TypeStrings {
       else enclClass.getName + "." + (name stripPrefix enclPre)
     )
   }
-  def scalaName(ct: ClassTag[_]): String = scalaName(ct.runtimeClass)
   def anyClass(x: Any): JClass          = if (x == null) null else x.getClass
 
   private def brackets(tps: String*): String =
@@ -211,7 +205,7 @@ trait TypeStrings {
   }
 
   private def tparamString[T: ru.TypeTag] : String = {
-    import ru._
+    import ru._ // get TypeRefTag in scope so that pattern match works (TypeRef is an abstract type)
     def typeArguments: List[ru.Type] = ru.typeOf[T] match { case ru.TypeRef(_, _, args) => args; case _ => Nil }
     brackets(typeArguments map (jc => tvarString(List(jc))): _*)
   }
@@ -224,7 +218,6 @@ trait TypeStrings {
    *  practice to rely on toString for correctness) generated the VALID string
    *  representation of the type.
    */
-  def fromTypedValue[T: ru.TypeTag : ClassTag](x: T): String = fromTag[T]
   def fromValue(value: Any): String                          = if (value == null) "Null" else fromClazz(anyClass(value))
   def fromClazz(clazz: JClass): String                       = scalaName(clazz) + tparamString(clazz)
   def fromTag[T: ru.TypeTag : ClassTag] : String             = scalaName(classTag[T].runtimeClass) + tparamString[T]
@@ -244,13 +237,6 @@ trait TypeStrings {
       case (res, (k, v)) => res.replaceAll(k, v)
     }
   }
-
-  val typeTransforms = List(
-    "java.lang." -> "",
-    "scala.collection.immutable." -> "immutable.",
-    "scala.collection.mutable." -> "mutable.",
-    "scala.collection.generic." -> "generic."
-  )
 }
 
 object TypeStrings extends TypeStrings { }

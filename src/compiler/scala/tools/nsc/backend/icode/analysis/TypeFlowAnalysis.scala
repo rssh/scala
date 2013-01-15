@@ -1,5 +1,5 @@
 /* NSC -- new Scala compiler
- * Copyright 2005-2012 LAMP/EPFL
+ * Copyright 2005-2013 LAMP/EPFL
  * @author  Martin Odersky
  */
 
@@ -68,7 +68,6 @@ abstract class TypeFlowAnalysis {
    *  names to types and a type stack.
    */
   object typeFlowLattice extends SemiLattice {
-    import icodes._
     type Elem = IState[VarBinding, icodes.TypeStack]
 
     val top    = new Elem(new VarBinding, typeStackLattice.top)
@@ -136,7 +135,7 @@ abstract class TypeFlowAnalysis {
       timer.start
       // icodes.lubs0 = 0
       forwardAnalysis(blockTransfer)
-      val t = timer.stop
+      timer.stop
       if (settings.debug.value) {
         linearizer.linearize(method).foreach(b => if (b != method.startBlock)
           assert(visited.contains(b),
@@ -269,36 +268,6 @@ abstract class TypeFlowAnalysis {
       out
     } // interpret
 
-
-    class SimulatedStack {
-      private var types: List[InferredType] = Nil
-      private var depth = 0
-
-      /** Remove and return the topmost element on the stack. If the
-       *  stack is empty, return a reference to a negative index on the
-       *  stack, meaning it refers to elements pushed by a predecessor block.
-       */
-      def pop: InferredType = types match {
-        case head :: rest =>
-          types = rest
-          head
-        case _ =>
-          depth -= 1
-          TypeOfStackPos(depth)
-      }
-
-      def pop2: (InferredType, InferredType) = {
-        (pop, pop)
-      }
-
-      def push(t: InferredType) {
-        depth += 1
-        types = types ::: List(t)
-      }
-
-      def push(k: TypeKind) { push(Const(k)) }
-    }
-
 	abstract class InferredType {
       /** Return the type kind pointed by this inferred type. */
       def getKind(in: lattice.Elem): icodes.TypeKind = this match {
@@ -326,7 +295,6 @@ abstract class TypeFlowAnalysis {
 	class TransferFunction(consumed: Int, gens: List[Gen]) extends (lattice.Elem => lattice.Elem) {
 	  def apply(in: lattice.Elem): lattice.Elem = {
         val out = lattice.IState(new VarBinding(in.vars), new TypeStack(in.stack))
-        val bindings = out.vars
         val stack = out.stack
 
         out.stack.pop(consumed)
@@ -389,7 +357,7 @@ abstract class TypeFlowAnalysis {
 
       timer.start
       forwardAnalysis(blockTransfer)
-      val t = timer.stop
+      timer.stop
 
       /* Now that `forwardAnalysis(blockTransfer)` has finished, all inlining candidates can be found in `remainingCALLs`,
          whose keys are callsites and whose values are pieces of information about the typestack just before the callsite in question.
@@ -738,10 +706,6 @@ abstract class TypeFlowAnalysis {
     var millis = 0L
 
     private var lastStart = 0L
-
-    def reset() {
-      millis = 0L
-    }
 
     def start() {
       lastStart = System.currentTimeMillis

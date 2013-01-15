@@ -1,6 +1,6 @@
 /*                     __                                               *\
 **     ________ ___   / /  ___     Scala API                            **
-**    / __/ __// _ | / /  / _ |    (c) 2003-2011, LAMP/EPFL             **
+**    / __/ __// _ | / /  / _ |    (c) 2003-2013, LAMP/EPFL             **
 **  __\ \/ /__/ __ |/ /__/ __ |    http://scala-lang.org/               **
 ** /____/\___/_/ |_/____/_/ | |                                         **
 **                          |/                                          **
@@ -29,13 +29,12 @@ package object concurrent {
    */
   def future[T](body: =>T)(implicit execctx: ExecutionContext): Future[T] = Future[T](body)
 
-  /** Creates a promise object which can be completed with a value.
+  /** Creates a promise object which can be completed with a value or an exception.
    *  
    *  @tparam T       the type of the value in the promise
-   *  @param execctx  the execution context on which the promise is created on
    *  @return         the newly created `Promise` object
    */
-  def promise[T]()(implicit execctx: ExecutionContext): Promise[T] = Promise[T]()
+  def promise[T](): Promise[T] = Promise[T]()
 
   /** Used to designate a piece of code which potentially blocks, allowing the current [[BlockContext]] to adjust
    *  the runtime's behavior.

@@ -1,5 +1,5 @@
 /* NSC -- new Scala compiler
- * Copyright 2005-2012 LAMP/EPFL
+ * Copyright 2005-2013 LAMP/EPFL
  * @author  Martin Odersky
  *
  */
@@ -7,6 +7,7 @@
 package scala.reflect.internal.util
 
 import scala.reflect.ClassTag
+import scala.reflect.internal.FatalError
 import scala.reflect.macros.Attachments
 
 object Position {
@@ -128,7 +129,7 @@ abstract class Position extends scala.reflect.api.Position { self =>
   def endOrPoint: Int = point
 
   @deprecated("use point instead", "2.9.0")
-  def offset: Option[Int] = if (isDefined) Some(point) else None
+  def offset: Option[Int] = if (isDefined) Some(point) else None // used by sbt
 
   /** The same position with a different start value (if a range) */
   def withStart(off: Int): Position = this
@@ -269,7 +270,7 @@ class OffsetPosition(override val source: SourceFile, override val point: Int) e
 /** new for position ranges */
 class RangePosition(source: SourceFile, override val start: Int, point: Int, override val end: Int)
 extends OffsetPosition(source, point) {
-  if (start > end) assert(false, "bad position: "+show)
+  if (start > end) sys.error("bad position: "+show)
   override def isRange: Boolean = true
   override def isOpaqueRange: Boolean = true
   override def startOrPoint: Int = start

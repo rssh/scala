@@ -1,6 +1,6 @@
 /*                     __                                               *\
 **     ________ ___   / /  ___     Scala API                            **
-**    / __/ __// _ | / /  / _ |    (c) 2006-2011, LAMP/EPFL             **
+**    / __/ __// _ | / /  / _ |    (c) 2006-2013, LAMP/EPFL             **
 **  __\ \/ /__/ __ |/ /__/ __ |    http://www.scala-lang.org/           **
 ** /____/\___/_/ |_/____/_/ | |                                         **
 **                          |/                                          **
@@ -8,7 +8,6 @@
 
 package scala.collection
 
-import java.{ lang => jl, util => ju }, java.util.{ concurrent => juc }
 import convert._
 
 /**   A collection of implicit conversions supporting interoperability between

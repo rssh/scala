@@ -1,5 +1,5 @@
 /* NSC -- new Scala compiler
-* Copyright 2005-2012 LAMP/EPFL
+* Copyright 2005-2013 LAMP/EPFL
 * @author  Martin Odersky
 */
 package scala.reflect
@@ -11,6 +11,8 @@ package api
 //    Otherwise you'd better not - reflection API should stay minimalistic.
 
 /**
+ * <span class="badge badge-red" style="float: right;">EXPERIMENTAL</span>
+ *
  *  Standard names are names that are essential to creating trees or to reflecting Scala artifacts.
  *  For example, `CONSTRUCTOR` (aka `<init>` on JVM) is necessary to create and invoke constructors.
  *
@@ -20,6 +22,7 @@ package api
  *
  *  The API for names in Scala reflection.
  *  @groupname StandardNames Standard Names
+ *  @group ReflectionAPI
  */
 trait StandardNames {
   self: Universe =>
@@ -80,6 +83,11 @@ trait StandardNames {
      *  Represents the root package.
      */
     val ROOTPKG: NameType
+
+    /** The term name `<empty>`.
+     *  Represents the empty package.
+     */
+    val EMPTY_PACKAGE_NAME: NameType
 
     /** The string " " (a single whitespace).
      *  `LOCAL_SUFFIX_STRING` is appended to the names of local identifiers,

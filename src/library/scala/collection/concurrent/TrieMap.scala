@@ -1,6 +1,6 @@
 /*                     __                                               *\
 **     ________ ___   / /  ___     Scala API                            **
-**    / __/ __// _ | / /  / _ |    (c) 2003-2012, LAMP/EPFL             **
+**    / __/ __// _ | / /  / _ |    (c) 2003-2013, LAMP/EPFL             **
 **  __\ \/ /__/ __ |/ /__/ __ |    http://scala-lang.org/               **
 ** /____/\___/_/ |_/____/_/ | |                                         **
 **                          |/                                          **
@@ -545,7 +545,7 @@ private[collection] final class CNode[K, V](val bitmap: Int, val array: Array[Ba
   //   removed (those existing when the op began)
   // - if there are only null-i-nodes below, returns null
   def toCompressed(ct: TrieMap[K, V], lev: Int, gen: Gen) = {
-    var bmp = bitmap
+    val bmp = bitmap
     var i = 0
     val arr = array
     val tmparray = new Array[BasicNode](arr.length)

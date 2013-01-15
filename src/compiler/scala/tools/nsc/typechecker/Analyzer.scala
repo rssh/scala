@@ -1,5 +1,5 @@
 /* NSC -- new Scala compiler
- * Copyright 2005-2012 LAMP/EPFL
+ * Copyright 2005-2013 LAMP/EPFL
  * @author  Martin Odersky
  */
 
@@ -16,7 +16,6 @@ trait Analyzer extends AnyRef
             with Typers
             with Infer
             with Implicits
-            with Variances
             with EtaExpansion
             with SyntheticMethods
             with Unapplies

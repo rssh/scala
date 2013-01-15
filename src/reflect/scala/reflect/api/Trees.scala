@@ -1,32 +1,48 @@
 /* NSC -- new Scala compiler
- * Copyright 2005-2012 LAMP/EPFL
+ * Copyright 2005-2013 LAMP/EPFL
  * @author  Martin Odersky
  */
 package scala.reflect
 package api
 
-/** This trait defines the node types used in Scala abstract syntax trees (AST) and operations on them.
+/**
+ * <span class="badge badge-red" style="float: right;">EXPERIMENTAL</span>
  *
-*  All tree node types are sub types of [[scala.reflect.api.Trees#Tree Tree]].
+ * This trait defines the node types used in Scala abstract syntax trees (AST) and operations on them.
+ *
+ * Trees are the basis for Scala's abstract syntax that is used to represent programs. They are also called
+ * abstract syntax trees and commonly abbreviated as ASTs.
+ *
+ * In Scala reflection, APIs that produce or use `Tree`s are:
+ *
+ *   - '''Annotations''' which use trees to represent their arguments, exposed in [[scala.reflect.api.Annotations#scalaArgs Annotation.scalaArgs]].
+ *   - '''[[scala.reflect.api.Universe#reify reify]]''', a special method on [[scala.reflect.api.Universe]] that takes an expression and returns an AST which represents the expression.
+ *   - '''Macros and runtime compilation with toolboxes''' which both use trees as their program representation medium.
  *
  *  Trees are immutable, except for three fields
  *  [[Trees#TreeApi.pos pos]], [[Trees#TreeApi.symbol symbol]], and [[Trees#TreeApi.tpe tpe]], which are assigned when a tree is typechecked
  *  to attribute it with the information gathered by the typechecker.
  *
- *  [[scala.reflect.api.Universe#reify reify]] can be used to get the tree for a given Scala expression.
- *
- *  [[scala.reflect.api.Universe#showRaw showRaw]] can be used to get a readable representation of a tree.
- *
  *  === Examples ===
- * `Literal(Constant(5))` creates an AST representing a literal 5 in Scala source code.
  *
- * `Apply(Select(Select(This(newTypeName("scala")), newTermName("Predef")), newTermName("print")), List(Literal(Constant("Hello World"))))`
- * creates an AST representing `print("Hello World")`.
+ *  The following creates an AST representing a literal 5 in Scala source code:
+ *  {{{
+ *    Literal(Constant(5))
+ *  }}}
  *
- * `import scala.reflect.runtime.universe.{reify,showRaw}`
- * `print( showRaw( reify{5}.tree ) )` // prints Literal(Constant(5))
+ *  The following creates an AST representing `print("Hello World")`:
+ *  {{{
+ *    Apply(Select(Select(This(newTypeName("scala")), newTermName("Predef")), newTermName("print")), List(Literal(Constant("Hello World"))))
+ *  }}}
  *
- *  @see [[http://docs.scala-lang.org/overviews/reflection/symbols-trees-types.html#trees]].
+ *  The following creates an AST from a literal 5, and then uses `showRaw` to print it in a readable format.
+ *  {{{
+ *    import scala.reflect.runtime.universe.{ reify, showRaw }
+ *    print( showRaw( reify{5}.tree ) )` // prints Literal(Constant(5))
+ *  }}}
+ *
+ *  For more information about `Tree`s, see the [[http://docs.scala-lang.org/overviews/reflection/symbols-trees-types.html Reflection Guide: Symbols, Trees, Types]].
+ *
  *  @groupname Traversal Tree Traversal and Transformation
  *  @groupprio Traversal 1
  *  @groupprio Factories 1
@@ -34,6 +50,7 @@ package api
  *  @groupprio Copying   1
  *
  *  @contentDiagram hideNodes "*Api"
+ *  @group ReflectionAPI
  */
 trait Trees { self: Universe =>
 
@@ -58,10 +75,31 @@ trait Trees { self: Universe =>
     def isDef: Boolean
 
     /** Is this tree one of the empty trees?
+     *
      *  Empty trees are: the `EmptyTree` null object, `TypeTree` instances that don't carry a type
      *  and the special `emptyValDef` singleton.
+     *
+     *  In the compiler the `isEmpty` check and the derived `orElse` method are mostly used
+     *  as a check for a tree being a null object (`EmptyTree` for term trees and empty TypeTree for type trees).
+     *
+     *  Unfortunately `emptyValDef` is also considered to be `isEmpty`, but this is deemed to be
+     *  a conceptual mistake pending a fix in https://issues.scala-lang.org/browse/SI-6762.
+     *
+     *  @see `canHaveAttrs`
      */
     def isEmpty: Boolean
+
+    /** Is this tree one of the empty trees?
+     *
+     *  @see `isEmpty`
+     */
+    def nonEmpty: Boolean
+
+    /** Can this tree carry attributes (i.e. symbols, types or positions)?
+     *  Typically the answer is yes, except for the `EmptyTree` null object and
+     *  two special singletons: `emptyValDef` and `pendingSuperCall`.
+     */
+    def canHaveAttrs: Boolean
 
     /** The canonical way to test if a Tree represents a term.
      */
@@ -346,7 +384,7 @@ trait Trees { self: Universe =>
    */
   implicit val PackageDefTag: ClassTag[PackageDef]
 
-  /** The constructor/deconstructor for `PackageDef` instances.
+  /** The constructor/extractor for `PackageDef` instances.
    *  @group Extractors
    */
   val PackageDef: PackageDefExtractor
@@ -405,7 +443,7 @@ trait Trees { self: Universe =>
    */
   implicit val ClassDefTag: ClassTag[ClassDef]
 
-  /** The constructor/deconstructor for `ClassDef` instances.
+  /** The constructor/extractor for `ClassDef` instances.
    *  @group Extractors
    */
   val ClassDef: ClassDefExtractor
@@ -456,7 +494,7 @@ trait Trees { self: Universe =>
    */
   implicit val ModuleDefTag: ClassTag[ModuleDef]
 
-  /** The constructor/deconstructor for `ModuleDef` instances.
+  /** The constructor/extractor for `ModuleDef` instances.
    *  @group Extractors
    */
   val ModuleDef: ModuleDefExtractor
@@ -539,7 +577,7 @@ trait Trees { self: Universe =>
    */
   implicit val ValDefTag: ClassTag[ValDef]
 
-  /** The constructor/deconstructor for `ValDef` instances.
+  /** The constructor/extractor for `ValDef` instances.
    *  @group Extractors
    */
   val ValDef: ValDefExtractor
@@ -594,7 +632,7 @@ trait Trees { self: Universe =>
    */
   implicit val DefDefTag: ClassTag[DefDef]
 
-  /** The constructor/deconstructor for `DefDef` instances.
+  /** The constructor/extractor for `DefDef` instances.
    *  @group Extractors
    */
   val DefDef: DefDefExtractor
@@ -649,7 +687,7 @@ trait Trees { self: Universe =>
    */
   implicit val TypeDefTag: ClassTag[TypeDef]
 
-  /** The constructor/deconstructor for `TypeDef` instances.
+  /** The constructor/extractor for `TypeDef` instances.
    *  @group Extractors
    */
   val TypeDef: TypeDefExtractor
@@ -714,7 +752,7 @@ trait Trees { self: Universe =>
    */
   implicit val LabelDefTag: ClassTag[LabelDef]
 
-  /** The constructor/deconstructor for `LabelDef` instances.
+  /** The constructor/extractor for `LabelDef` instances.
    *  @group Extractors
    */
   val LabelDef: LabelDefExtractor
@@ -776,7 +814,7 @@ trait Trees { self: Universe =>
    */
   implicit val ImportSelectorTag: ClassTag[ImportSelector]
 
-  /** The constructor/deconstructor for `ImportSelector` instances.
+  /** The constructor/extractor for `ImportSelector` instances.
    *  @group Extractors
    */
   val ImportSelector: ImportSelectorExtractor
@@ -828,7 +866,7 @@ trait Trees { self: Universe =>
    */
   implicit val ImportTag: ClassTag[Import]
 
-  /** The constructor/deconstructor for `Import` instances.
+  /** The constructor/extractor for `Import` instances.
    *  @group Extractors
    */
   val Import: ImportExtractor
@@ -886,7 +924,7 @@ trait Trees { self: Universe =>
    */
   implicit val TemplateTag: ClassTag[Template]
 
-  /** The constructor/deconstructor for `Template` instances.
+  /** The constructor/extractor for `Template` instances.
    *  @group Extractors
    */
   val Template: TemplateExtractor
@@ -944,7 +982,7 @@ trait Trees { self: Universe =>
    */
   implicit val BlockTag: ClassTag[Block]
 
-  /** The constructor/deconstructor for `Block` instances.
+  /** The constructor/extractor for `Block` instances.
    *  @group Extractors
    */
   val Block: BlockExtractor
@@ -989,7 +1027,7 @@ trait Trees { self: Universe =>
    */
   implicit val CaseDefTag: ClassTag[CaseDef]
 
-  /** The constructor/deconstructor for `CaseDef` instances.
+  /** The constructor/extractor for `CaseDef` instances.
    *  @group Extractors
    */
   val CaseDef: CaseDefExtractor
@@ -1042,7 +1080,7 @@ trait Trees { self: Universe =>
    */
   implicit val AlternativeTag: ClassTag[Alternative]
 
-  /** The constructor/deconstructor for `Alternative` instances.
+  /** The constructor/extractor for `Alternative` instances.
    *  @group Extractors
    */
   val Alternative: AlternativeExtractor
@@ -1080,7 +1118,7 @@ trait Trees { self: Universe =>
    */
   implicit val StarTag: ClassTag[Star]
 
-  /** The constructor/deconstructor for `Star` instances.
+  /** The constructor/extractor for `Star` instances.
    *  @group Extractors
    */
   val Star: StarExtractor
@@ -1121,7 +1159,7 @@ trait Trees { self: Universe =>
    */
   implicit val BindTag: ClassTag[Bind]
 
-  /** The constructor/deconstructor for `Bind` instances.
+  /** The constructor/extractor for `Bind` instances.
    *  @group Extractors
    */
   val Bind: BindExtractor
@@ -1190,7 +1228,7 @@ trait Trees { self: Universe =>
    */
   implicit val UnApplyTag: ClassTag[UnApply]
 
-  /** The constructor/deconstructor for `UnApply` instances.
+  /** The constructor/extractor for `UnApply` instances.
    *  @group Extractors
    */
   val UnApply: UnApplyExtractor
@@ -1232,7 +1270,7 @@ trait Trees { self: Universe =>
    */
   implicit val FunctionTag: ClassTag[Function]
 
-  /** The constructor/deconstructor for `Function` instances.
+  /** The constructor/extractor for `Function` instances.
    *  @group Extractors
    */
   val Function: FunctionExtractor
@@ -1276,7 +1314,7 @@ trait Trees { self: Universe =>
    */
   implicit val AssignTag: ClassTag[Assign]
 
-  /** The constructor/deconstructor for `Assign` instances.
+  /** The constructor/extractor for `Assign` instances.
    *  @group Extractors
    */
   val Assign: AssignExtractor
@@ -1318,7 +1356,7 @@ trait Trees { self: Universe =>
    */
   implicit val AssignOrNamedArgTag: ClassTag[AssignOrNamedArg]
 
-  /** The constructor/deconstructor for `AssignOrNamedArg` instances.
+  /** The constructor/extractor for `AssignOrNamedArg` instances.
    *  @group Extractors
    */
   val AssignOrNamedArg: AssignOrNamedArgExtractor
@@ -1365,7 +1403,7 @@ trait Trees { self: Universe =>
    */
   implicit val IfTag: ClassTag[If]
 
-  /** The constructor/deconstructor for `If` instances.
+  /** The constructor/extractor for `If` instances.
    *  @group Extractors
    */
   val If: IfExtractor
@@ -1422,7 +1460,7 @@ trait Trees { self: Universe =>
    */
   implicit val MatchTag: ClassTag[Match]
 
-  /** The constructor/deconstructor for `Match` instances.
+  /** The constructor/extractor for `Match` instances.
    *  @group Extractors
    */
   val Match: MatchExtractor
@@ -1463,7 +1501,7 @@ trait Trees { self: Universe =>
    */
   implicit val ReturnTag: ClassTag[Return]
 
-  /** The constructor/deconstructor for `Return` instances.
+  /** The constructor/extractor for `Return` instances.
    *  @group Extractors
    */
   val Return: ReturnExtractor
@@ -1501,7 +1539,7 @@ trait Trees { self: Universe =>
    */
   implicit val TryTag: ClassTag[Try]
 
-  /** The constructor/deconstructor for `Try` instances.
+  /** The constructor/extractor for `Try` instances.
    *  @group Extractors
    */
   val Try: TryExtractor
@@ -1545,7 +1583,7 @@ trait Trees { self: Universe =>
    */
   implicit val ThrowTag: ClassTag[Throw]
 
-  /** The constructor/deconstructor for `Throw` instances.
+  /** The constructor/extractor for `Throw` instances.
    *  @group Extractors
    */
   val Throw: ThrowExtractor
@@ -1581,7 +1619,7 @@ trait Trees { self: Universe =>
    */
   implicit val NewTag: ClassTag[New]
 
-  /** The constructor/deconstructor for `New` instances.
+  /** The constructor/extractor for `New` instances.
    *  @group Extractors
    */
   val New: NewExtractor
@@ -1594,14 +1632,23 @@ trait Trees { self: Universe =>
    *  This node always occurs in the following context:
    *
    *    (`new` tpt).<init>[targs](args)
+   *
+   *  For example, an AST representation of:
+   *
+   *    new Example[Int](2)(3)
+   *
+   *  is the following code:
+   *
+   *    Apply(
+   *      Apply(
+   *        TypeApply(
+   *          Select(New(TypeTree(typeOf[Example])), nme.CONSTRUCTOR)
+   *          TypeTree(typeOf[Int])),
+   *        List(Literal(Constant(2)))),
+   *      List(Literal(Constant(3))))
    *  @group Extractors
    */
   abstract class NewExtractor {
-    /** A user level `new`.
-     *  One should always use this factory method to build a user level `new`.
-     *
-     *  @param tpt    a class type
-     */
     def apply(tpt: Tree): New
     def unapply(new_ : New): Option[Tree]
   }
@@ -1628,7 +1675,7 @@ trait Trees { self: Universe =>
    */
   implicit val TypedTag: ClassTag[Typed]
 
-  /** The constructor/deconstructor for `Typed` instances.
+  /** The constructor/extractor for `Typed` instances.
    *  @group Extractors
    */
   val Typed: TypedExtractor
@@ -1694,7 +1741,7 @@ trait Trees { self: Universe =>
    */
   implicit val TypeApplyTag: ClassTag[TypeApply]
 
-  /** The constructor/deconstructor for `TypeApply` instances.
+  /** The constructor/extractor for `TypeApply` instances.
    *  @group Extractors
    */
   val TypeApply: TypeApplyExtractor
@@ -1703,6 +1750,16 @@ trait Trees { self: Universe =>
    *  This AST node corresponds to the following Scala code:
    *
    *    fun[args]
+   *
+   *  Should only be used with `fun` nodes which are terms, i.e. which have `isTerm` returning `true`.
+   *  Otherwise `AppliedTypeTree` should be used instead.
+   *
+   *    def foo[T] = ???
+   *    foo[Int] // represented as TypeApply(Ident(<foo>), List(TypeTree(<Int>)))
+   *
+   *    List[Int] as in `val x: List[Int] = ???`
+   *    // represented as AppliedTypeTree(Ident(<List>), List(TypeTree(<Int>)))
+   *
    *  @group Extractors
    */
   abstract class TypeApplyExtractor {
@@ -1728,7 +1785,7 @@ trait Trees { self: Universe =>
    */
   implicit val ApplyTag: ClassTag[Apply]
 
-  /** The constructor/deconstructor for `Apply` instances.
+  /** The constructor/extractor for `Apply` instances.
    *  @group Extractors
    */
   val Apply: ApplyExtractor
@@ -1771,7 +1828,7 @@ trait Trees { self: Universe =>
    */
   implicit val SuperTag: ClassTag[Super]
 
-  /** The constructor/deconstructor for `Super` instances.
+  /** The constructor/extractor for `Super` instances.
    *  @group Extractors
    */
   val Super: SuperExtractor
@@ -1823,7 +1880,7 @@ trait Trees { self: Universe =>
    */
   implicit val ThisTag: ClassTag[This]
 
-  /** The constructor/deconstructor for `This` instances.
+  /** The constructor/extractor for `This` instances.
    *  @group Extractors
    */
   val This: ThisExtractor
@@ -1864,7 +1921,7 @@ trait Trees { self: Universe =>
    */
   implicit val SelectTag: ClassTag[Select]
 
-  /** The constructor/deconstructor for `Select` instances.
+  /** The constructor/extractor for `Select` instances.
    *  @group Extractors
    */
   val Select: SelectExtractor
@@ -1873,6 +1930,12 @@ trait Trees { self: Universe =>
    *  This AST node corresponds to the following Scala code:
    *
    *    qualifier.selector
+   *
+   *  Should only be used with `qualifier` nodes which are terms, i.e. which have `isTerm` returning `true`.
+   *  Otherwise `SelectFromTypeTree` should be used instead.
+   *
+   *    foo.Bar // represented as Select(Ident(<foo>), <Bar>)
+   *    Foo#Bar // represented as SelectFromTypeTree(Ident(<Foo>), <Bar>)
    *  @group Extractors
    */
   abstract class SelectExtractor {
@@ -1903,7 +1966,7 @@ trait Trees { self: Universe =>
    */
   implicit val IdentTag: ClassTag[Ident]
 
-  /** The constructor/deconstructor for `Ident` instances.
+  /** The constructor/extractor for `Ident` instances.
    *  @group Extractors
    */
   val Ident: IdentExtractor
@@ -1948,7 +2011,7 @@ trait Trees { self: Universe =>
    */
   implicit val ReferenceToBoxedTag: ClassTag[ReferenceToBoxed]
 
-  /** The constructor/deconstructor for `ReferenceToBoxed` instances.
+  /** The constructor/extractor for `ReferenceToBoxed` instances.
    *  @group Extractors
    */
   val ReferenceToBoxed: ReferenceToBoxedExtractor
@@ -1998,7 +2061,7 @@ trait Trees { self: Universe =>
    */
   implicit val LiteralTag: ClassTag[Literal]
 
-  /** The constructor/deconstructor for `Literal` instances.
+  /** The constructor/extractor for `Literal` instances.
    *  @group Extractors
    */
   val Literal: LiteralExtractor
@@ -2037,7 +2100,7 @@ trait Trees { self: Universe =>
    */
   implicit val AnnotatedTag: ClassTag[Annotated]
 
-  /** The constructor/deconstructor for `Annotated` instances.
+  /** The constructor/extractor for `Annotated` instances.
    *  @group Extractors
    */
   val Annotated: AnnotatedExtractor
@@ -2077,7 +2140,7 @@ trait Trees { self: Universe =>
    */
   implicit val SingletonTypeTreeTag: ClassTag[SingletonTypeTree]
 
-  /** The constructor/deconstructor for `SingletonTypeTree` instances.
+  /** The constructor/extractor for `SingletonTypeTree` instances.
    *  @group Extractors
    */
   val SingletonTypeTree: SingletonTypeTreeExtractor
@@ -2105,7 +2168,6 @@ trait Trees { self: Universe =>
    *  @group Trees
    *  @template
    */
-  // [Eugene++] don't see why we need it, when we have Select
   type SelectFromTypeTree >: Null <: TypTree with RefTree with SelectFromTypeTreeApi
 
   /** A tag that preserves the identity of the `SelectFromTypeTree` abstract type from erasure.
@@ -2114,7 +2176,7 @@ trait Trees { self: Universe =>
    */
   implicit val SelectFromTypeTreeTag: ClassTag[SelectFromTypeTree]
 
-  /** The constructor/deconstructor for `SelectFromTypeTree` instances.
+  /** The constructor/extractor for `SelectFromTypeTree` instances.
    *  @group Extractors
    */
   val SelectFromTypeTree: SelectFromTypeTreeExtractor
@@ -2125,6 +2187,12 @@ trait Trees { self: Universe =>
    *    qualifier # selector
    *
    *  Note: a path-dependent type p.T is expressed as p.type # T
+   *
+   *  Should only be used with `qualifier` nodes which are types, i.e. which have `isType` returning `true`.
+   *  Otherwise `Select` should be used instead.
+   *
+   *    Foo#Bar // represented as SelectFromTypeTree(Ident(<Foo>), <Bar>)
+   *    foo.Bar // represented as Select(Ident(<foo>), <Bar>)
    *  @group Extractors
    */
   abstract class SelectFromTypeTreeExtractor {
@@ -2155,7 +2223,7 @@ trait Trees { self: Universe =>
    */
   implicit val CompoundTypeTreeTag: ClassTag[CompoundTypeTree]
 
-  /** The constructor/deconstructor for `CompoundTypeTree` instances.
+  /** The constructor/extractor for `CompoundTypeTree` instances.
    *  @group Extractors
    */
   val CompoundTypeTree: CompoundTypeTreeExtractor
@@ -2191,7 +2259,7 @@ trait Trees { self: Universe =>
    */
   implicit val AppliedTypeTreeTag: ClassTag[AppliedTypeTree]
 
-  /** The constructor/deconstructor for `AppliedTypeTree` instances.
+  /** The constructor/extractor for `AppliedTypeTree` instances.
    *  @group Extractors
    */
   val AppliedTypeTree: AppliedTypeTreeExtractor
@@ -2200,6 +2268,15 @@ trait Trees { self: Universe =>
    *  This AST node corresponds to the following Scala code:
    *
    *    tpt[args]
+   *
+   *  Should only be used with `tpt` nodes which are types, i.e. which have `isType` returning `true`.
+   *  Otherwise `TypeApply` should be used instead.
+   *
+   *    List[Int] as in `val x: List[Int] = ???`
+   *    // represented as AppliedTypeTree(Ident(<List>), List(TypeTree(<Int>)))
+   *
+   *    def foo[T] = ???
+   *    foo[Int] // represented as TypeApply(Ident(<foo>), List(TypeTree(<Int>)))
    *  @group Extractors
    */
   abstract class AppliedTypeTreeExtractor {
@@ -2230,7 +2307,7 @@ trait Trees { self: Universe =>
    */
   implicit val TypeBoundsTreeTag: ClassTag[TypeBoundsTree]
 
-  /** The constructor/deconstructor for `TypeBoundsTree` instances.
+  /** The constructor/extractor for `TypeBoundsTree` instances.
    *  @group Extractors
    */
   val TypeBoundsTree: TypeBoundsTreeExtractor
@@ -2273,7 +2350,7 @@ trait Trees { self: Universe =>
    */
   implicit val ExistentialTypeTreeTag: ClassTag[ExistentialTypeTree]
 
-  /** The constructor/deconstructor for `ExistentialTypeTree` instances.
+  /** The constructor/extractor for `ExistentialTypeTree` instances.
    *  @group Extractors
    */
   val ExistentialTypeTree: ExistentialTypeTreeExtractor
@@ -2316,7 +2393,7 @@ trait Trees { self: Universe =>
    */
   implicit val TypeTreeTag: ClassTag[TypeTree]
 
-  /** The constructor/deconstructor for `TypeTree` instances.
+  /** The constructor/extractor for `TypeTree` instances.
    *  @group Extractors
    */
   val TypeTree: TypeTreeExtractor
@@ -2349,123 +2426,155 @@ trait Trees { self: Universe =>
    */
   val emptyValDef: ValDef
 
+  /** An empty superclass constructor call corresponding to:
+   *    super.<init>()
+   *  This is used as a placeholder in the primary constructor body in class templates
+   *  to denote the insertion point of a call to superclass constructor after the typechecker
+   *  figures out the superclass of a given template.
+   *  @group Trees
+   */
+  val pendingSuperCall: Apply
+
 // ---------------------- factories ----------------------------------------------
 
   /** A factory method for `ClassDef` nodes.
    *  @group Factories
    */
+  @deprecated("Use the canonical ClassDef constructor to create a class and then initialize its position and symbol manually", "2.10.1")
   def ClassDef(sym: Symbol, impl: Template): ClassDef
 
   /** A factory method for `ModuleDef` nodes.
    *  @group Factories
    */
+  @deprecated("Use the canonical ModuleDef constructor to create an object and then initialize its position and symbol manually", "2.10.1")
   def ModuleDef(sym: Symbol, impl: Template): ModuleDef
 
   /** A factory method for `ValDef` nodes.
    *  @group Factories
    */
+  @deprecated("Use the canonical ValDef constructor to create a val and then initialize its position and symbol manually", "2.10.1")
   def ValDef(sym: Symbol, rhs: Tree): ValDef
 
   /** A factory method for `ValDef` nodes.
    *  @group Factories
    */
+  @deprecated("Use the canonical ValDef constructor to create a val with an empty right-hand side and then initialize its position and symbol manually", "2.10.1")
   def ValDef(sym: Symbol): ValDef
 
   /** A factory method for `ValDef` nodes.
    *  @group Factories
    */
+  @deprecated("Use the canonical DefDef constructor to create a method and then initialize its position and symbol manually", "2.10.1")
   def DefDef(sym: Symbol, mods: Modifiers, vparamss: List[List[ValDef]], rhs: Tree): DefDef
 
   /** A factory method for `ValDef` nodes.
    *  @group Factories
    */
+  @deprecated("Use the canonical DefDef constructor to create a method and then initialize its position and symbol manually", "2.10.1")
   def DefDef(sym: Symbol, vparamss: List[List[ValDef]], rhs: Tree): DefDef
 
   /** A factory method for `ValDef` nodes.
    *  @group Factories
    */
+  @deprecated("Use the canonical DefDef constructor to create a method and then initialize its position and symbol manually", "2.10.1")
   def DefDef(sym: Symbol, mods: Modifiers, rhs: Tree): DefDef
 
   /** A factory method for `ValDef` nodes.
    *  @group Factories
    */
+  @deprecated("Use the canonical DefDef constructor to create a method and then initialize its position and symbol manually", "2.10.1")
   def DefDef(sym: Symbol, rhs: Tree): DefDef
 
   /** A factory method for `ValDef` nodes.
    *  @group Factories
    */
+  @deprecated("Use the canonical DefDef constructor to create a method and then initialize its position and symbol manually", "2.10.1")
   def DefDef(sym: Symbol, rhs: List[List[Symbol]] => Tree): DefDef
 
   /** A factory method for `TypeDef` nodes.
    *  @group Factories
    */
+  @deprecated("Use the canonical TypeDef constructor to create a type alias and then initialize its position and symbol manually", "2.10.1")
   def TypeDef(sym: Symbol, rhs: Tree): TypeDef
 
   /** A factory method for `TypeDef` nodes.
    *  @group Factories
    */
+  @deprecated("Use the canonical TypeDef constructor to create an abstract type or type parameter and then initialize its position and symbol manually", "2.10.1")
   def TypeDef(sym: Symbol): TypeDef
 
   /** A factory method for `LabelDef` nodes.
    *  @group Factories
    */
+  @deprecated("Use the canonical LabelDef constructor to create a label and then initialize its position and symbol manually", "2.10.1")
   def LabelDef(sym: Symbol, params: List[Symbol], rhs: Tree): LabelDef
 
   /** A factory method for `Block` nodes.
    *  Flattens directly nested blocks.
    *  @group Factories
    */
+  @deprecated("Use the canonical Block constructor, explicitly specifying its expression if necessary. Flatten directly nested blocks manually if needed", "2.10.1")
   def Block(stats: Tree*): Block
 
   /** A factory method for `CaseDef` nodes.
    *  @group Factories
    */
+  @deprecated("Use the canonical CaseDef constructor passing EmptyTree for guard", "2.10.1")
   def CaseDef(pat: Tree, body: Tree): CaseDef
 
   /** A factory method for `Bind` nodes.
    *  @group Factories
    */
+  @deprecated("Use the canonical Bind constructor to create a bind and then initialize its symbol manually", "2.10.1")
   def Bind(sym: Symbol, body: Tree): Bind
 
   /** A factory method for `Try` nodes.
    *  @group Factories
    */
+  @deprecated("Use canonical CaseDef constructors to to create exception catching expressions and then wrap them in Try", "2.10.1")
   def Try(body: Tree, cases: (Tree, Tree)*): Try
 
   /** A factory method for `Throw` nodes.
    *  @group Factories
    */
+  @deprecated("Use the canonical New constructor to create an object instantiation expression and then wrap it in Throw", "2.10.1")
   def Throw(tpe: Type, args: Tree*): Throw
 
   /** Factory method for object creation `new tpt(args_1)...(args_n)`
    *  A `New(t, as)` is expanded to: `(new t).<init>(as)`
    *  @group Factories
    */
+  @deprecated("Use Apply(...Apply(Select(New(tpt), nme.CONSTRUCTOR), args1)...argsN) instead", "2.10.1")
   def New(tpt: Tree, argss: List[List[Tree]]): Tree
 
   /** 0-1 argument list new, based on a type.
    *  @group Factories
    */
+  @deprecated("Use New(TypeTree(tpe), args.toList) instead", "2.10.1")
   def New(tpe: Type, args: Tree*): Tree
 
   /** 0-1 argument list new, based on a symbol.
    *  @group Factories
    */
+  @deprecated("Use New(sym.toType, args) instead", "2.10.1")
   def New(sym: Symbol, args: Tree*): Tree
 
   /** A factory method for `Apply` nodes.
    *  @group Factories
    */
+  @deprecated("Use Apply(Ident(sym), args.toList) instead", "2.10.1")
   def Apply(sym: Symbol, args: Tree*): Tree
 
   /** 0-1 argument list new, based on a type tree.
    *  @group Factories
    */
+  @deprecated("Use Apply(Select(New(tpt), nme.CONSTRUCTOR), args) instead", "2.10.1")
   def ApplyConstructor(tpt: Tree, args: List[Tree]): Tree
 
   /** A factory method for `Super` nodes.
    *  @group Factories
    */
+  @deprecated("Use Super(This(sym), mix) instead", "2.10.1")
   def Super(sym: Symbol, mix: TypeName): Tree
 
   /** A factory method for `This` nodes.
@@ -2477,6 +2586,7 @@ trait Trees { self: Universe =>
    *  The string `name` argument is assumed to represent a [[scala.reflect.api.Names#TermName `TermName`]].
    *  @group Factories
    */
+  @deprecated("Use Select(tree, newTermName(name)) instead", "2.10.1")
   def Select(qualifier: Tree, name: String): Select
 
   /** A factory method for `Select` nodes.
@@ -2487,6 +2597,7 @@ trait Trees { self: Universe =>
   /** A factory method for `Ident` nodes.
    *  @group Factories
    */
+  @deprecated("Use Ident(newTermName(name)) instead", "2.10.1")
   def Ident(name: String): Ident
 
   /** A factory method for `Ident` nodes.
@@ -2817,7 +2928,8 @@ trait Trees { self: Universe =>
     def transform(tree: Tree): Tree = itransform(this, tree)
 
     /** Transforms a list of trees. */
-    def transformTrees(trees: List[Tree]): List[Tree] = trees mapConserve (transform(_))
+    def transformTrees(trees: List[Tree]): List[Tree] =
+      if (trees.isEmpty) Nil else trees mapConserve transform
 
     /** Transforms a `Template`. */
     def transformTemplate(tree: Template): Template =
@@ -2827,7 +2939,8 @@ trait Trees { self: Universe =>
       trees mapConserve (tree => transform(tree).asInstanceOf[TypeDef])
     /** Transforms a `ValDef`. */
     def transformValDef(tree: ValDef): ValDef =
-      if (tree.isEmpty) tree else transform(tree).asInstanceOf[ValDef]
+      if (tree eq emptyValDef) tree
+      else transform(tree).asInstanceOf[ValDef]
     /** Transforms a list of `ValDef` nodes. */
     def transformValDefs(trees: List[ValDef]): List[ValDef] =
       trees mapConserve (transformValDef(_))
@@ -2846,8 +2959,10 @@ trait Trees { self: Universe =>
         if (exprOwner != currentOwner && stat.isTerm) atOwner(exprOwner)(transform(stat))
         else transform(stat)) filter (EmptyTree != _)
     /** Transforms `Modifiers`. */
-    def transformModifiers(mods: Modifiers): Modifiers =
-      mods.mapAnnotations(transformTrees)
+    def transformModifiers(mods: Modifiers): Modifiers = {
+      if (mods.annotations.isEmpty) mods
+      else mods mapAnnotations transformTrees
+    }
 
     /** Transforms a tree with a given owner symbol. */
     def atOwner[A](owner: Symbol)(trans: => A): A = {
@@ -2910,18 +3025,22 @@ trait Trees { self: Universe =>
       Modifiers(flags, privateWithin, f(annotations))
   }
 
-  /** The constructor/deconstructor for `Modifiers` instances.
+  /** The constructor/extractor for `Modifiers` instances.
    *  @group Traversal
    */
-  val Modifiers: ModifiersCreator
+  val Modifiers: ModifiersExtractor
+
+  @deprecated("Use ModifiersExtractor instead", "2.11.0")
+  type ModifiersCreator = ModifiersExtractor
 
   /** An extractor class to create and pattern match with syntax `Modifiers(flags, privateWithin, annotations)`.
    *  Modifiers encapsulate flags, visibility annotations and Scala annotations for member definitions.
    *  @group Traversal
    */
-  abstract class ModifiersCreator {
+  abstract class ModifiersExtractor {
     def apply(): Modifiers = Modifiers(NoFlags, tpnme.EMPTY, List())
     def apply(flags: FlagSet, privateWithin: Name, annotations: List[Tree]): Modifiers
+    def unapply(mods: Modifiers): Option[(FlagSet, Name, List[Tree])]
   }
 
   /** The factory for `Modifiers` instances.

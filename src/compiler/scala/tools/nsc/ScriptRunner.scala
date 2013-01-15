@@ -1,5 +1,5 @@
 /* NSC -- new Scala compiler
- * Copyright 2005-2012 LAMP/EPFL
+ * Copyright 2005-2013 LAMP/EPFL
  * @author  Martin Odersky
  */
 
@@ -7,7 +7,6 @@ package scala.tools.nsc
 
 import io.{ Directory, File, Path }
 import java.io.IOException
-import java.net.URL
 import scala.tools.nsc.reporters.{Reporter,ConsoleReporter}
 import util.Exceptional.unwrap
 
@@ -48,8 +47,6 @@ class ScriptRunner extends HasCompileSocket {
     case "" => defaultScriptMain
     case x  => x
   }
-
-  def isScript(settings: Settings) = settings.script.value != ""
 
   /** Choose a jar filename to hold the compiled version of a script. */
   private def jarFileFor(scriptFile: String)= File(

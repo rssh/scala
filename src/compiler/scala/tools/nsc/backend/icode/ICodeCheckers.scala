@@ -1,5 +1,5 @@
 /* NSC -- new Scala compiler
- * Copyright 2005-2012 LAMP/EPFL
+ * Copyright 2005-2013 LAMP/EPFL
  * @author  Martin Odersky
  */
 
@@ -9,7 +9,6 @@ package icode
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
-import scala.tools.nsc.symtab._
 
 abstract class ICodeCheckers {
   val global: Global
@@ -49,7 +48,7 @@ abstract class ICodeCheckers {
    *  @author  Iulian Dragos
    *  @version 1.0, 06/09/2005
    *
-   *  @todo Better checks for <code>MONITOR_ENTER/EXIT</code>
+   *  @todo Better checks for `MONITOR_ENTER/EXIT`
    *        Better checks for local var initializations
    *
    *  @todo Iulian says: I think there's some outdated logic in the checker.
@@ -294,7 +293,7 @@ abstract class ICodeCheckers {
         else prefix + " with initial stack " + initial.types.mkString("[", ", ", "]")
       })
 
-      var stack = new TypeStack(initial)
+      val stack = new TypeStack(initial)
       def checkStack(len: Int) {
         if (stack.length < len)
           ICodeChecker.this.icodeError("Expected at least " + len + " elements on the stack", stack)
@@ -414,10 +413,7 @@ abstract class ICodeCheckers {
         }
 
         /** Checks that the object passed as receiver has a method
-         *  <code>method</code> and that it is callable from the current method.
-         *
-         *  @param receiver ...
-         *  @param method   ...
+         *  `method` and that it is callable from the current method.
          */
         def checkMethod(receiver: TypeKind, method: Symbol) =
           receiver match {
@@ -487,7 +483,7 @@ abstract class ICodeCheckers {
 
          case LOAD_MODULE(module) =>
            checkBool((module.isModule || module.isModuleClass),
-                     "Expected module: " + module + " flags: " + Flags.flagsToString(module.flags));
+                     "Expected module: " + module + " flags: " + module.flagString);
            pushStack(toTypeKind(module.tpe));
 
          case STORE_THIS(kind) =>

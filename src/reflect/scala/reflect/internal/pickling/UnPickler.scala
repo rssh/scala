@@ -1,5 +1,5 @@
 /* NSC -- new Scala compiler
- * Copyright 2005-2012 LAMP/EPFL
+ * Copyright 2005-2013 LAMP/EPFL
  * @author  Martin Odersky
  */
 
@@ -20,7 +20,7 @@ import scala.annotation.switch
 /** @author Martin Odersky
  *  @version 1.0
  */
-abstract class UnPickler /*extends scala.reflect.generic.UnPickler*/ {
+abstract class UnPickler {
   val global: SymbolTable
   import global._
 
@@ -161,9 +161,9 @@ abstract class UnPickler /*extends scala.reflect.generic.UnPickler*/ {
       result
     }
 
-    /** If entry at <code>i</code> is undefined, define it by performing
-     *  operation <code>op</code> with <code>readIndex at start of i'th
-     *  entry. Restore <code>readIndex</code> afterwards.
+    /** If entry at `i` is undefined, define it by performing
+     *  operation `op` with `readIndex at start of i'th
+     *  entry. Restore `readIndex` afterwards.
      */
     protected def at[T <: AnyRef](i: Int, op: () => T): T = {
       var r = entries(i)
@@ -188,13 +188,12 @@ abstract class UnPickler /*extends scala.reflect.generic.UnPickler*/ {
         case _ => errorBadSignature("bad name tag: " + tag)
       }
     }
-    protected def readTermName(): TermName = readName().toTermName
-    protected def readTypeName(): TypeName = readName().toTypeName
+    private def readEnd() = readNat() + readIndex
 
     /** Read a symbol */
     protected def readSymbol(): Symbol = {
       val tag   = readByte()
-      val end   = readNat() + readIndex
+      val end   = readEnd()
       def atEnd = readIndex == end
 
       def readExtSymbol(): Symbol = {
@@ -235,7 +234,12 @@ abstract class UnPickler /*extends scala.reflect.generic.UnPickler*/ {
               // (4) Call the mirror's "missing" hook.
               adjust(mirrorThatLoaded(owner).missingHook(owner, name)) orElse {
                 // (5) Create a stub symbol to defer hard failure a little longer.
-                owner.newStubSymbol(name)
+                val missingMessage =
+                  s"""|bad symbolic reference. A signature in $filename refers to ${name.longString}
+                      |in ${owner.kindString} ${owner.fullName} which is not available.
+                      |It may be completely missing from the current classpath, or the version on
+                      |the classpath might be incompatible with the version used when compiling $filename.""".stripMargin
+                owner.newStubSymbol(name, missingMessage)
               }
             }
           }
@@ -305,7 +309,7 @@ abstract class UnPickler /*extends scala.reflect.generic.UnPickler*/ {
           if (isModuleRoot) moduleRoot setFlag pflags
           else owner.newLinkedModule(clazz, pflags)
         case VALsym =>
-          if (isModuleRoot) { assert(false); NoSymbol }
+          if (isModuleRoot) { abort(s"VALsym at module root: owner = $owner, name = $name") }
           else owner.newTermSymbol(name.toTermName, NoPosition, pflags)
         case ANNOTATEDIMPORTsym =>
           if (isModuleRoot) { assert(false); NoSymbol }
@@ -339,7 +343,7 @@ abstract class UnPickler /*extends scala.reflect.generic.UnPickler*/ {
      */
     protected def readType(forceProperType: Boolean = false): Type = {
       val tag = readByte()
-      val end = readNat() + readIndex
+      val end = readEnd()
       (tag: @switch) match {
         case NOtpe =>
           NoType
@@ -358,7 +362,7 @@ abstract class UnPickler /*extends scala.reflect.generic.UnPickler*/ {
         case TYPEREFtpe =>
           val pre = readTypeRef()
           val sym = readSymbolRef()
-          var args = until(end, readTypeRef)
+          val args = until(end, readTypeRef)
           TypeRef(pre, sym, args)
         case TYPEBOUNDStpe =>
           TypeBounds(readTypeRef(), readTypeRef())
@@ -447,7 +451,7 @@ abstract class UnPickler /*extends scala.reflect.generic.UnPickler*/ {
     protected def readChildren() {
       val tag = readByte()
       assert(tag == CHILDREN)
-      val end = readNat() + readIndex
+      val end = readEnd()
       val target = readSymbolRef()
       while (readIndex != end) target addChild readSymbolRef()
     }
@@ -466,7 +470,7 @@ abstract class UnPickler /*extends scala.reflect.generic.UnPickler*/ {
      */
     private def readArrayAnnot() = {
       readByte() // skip the `annotargarray` tag
-      val end = readNat() + readIndex
+      val end = readEnd()
       until(end, () => readClassfileAnnotArg(readNat())).toArray(JavaArgumentTag)
     }
     protected def readClassfileAnnotArg(i: Int): ClassfileAnnotArg = bytes(index(i)) match {
@@ -502,7 +506,7 @@ abstract class UnPickler /*extends scala.reflect.generic.UnPickler*/ {
       val tag = readByte()
       if (tag != SYMANNOT)
         errorBadSignature("symbol annotation expected ("+ tag +")")
-      val end = readNat() + readIndex
+      val end = readEnd()
       val target = readSymbolRef()
       target.addAnnotation(readAnnotationInfo(end))
     }
@@ -513,7 +517,7 @@ abstract class UnPickler /*extends scala.reflect.generic.UnPickler*/ {
       val tag = readByte()
       if (tag != ANNOTINFO)
         errorBadSignature("annotation expected (" + tag + ")")
-      val end = readNat() + readIndex
+      val end = readEnd()
       readAnnotationInfo(end)
     }
 
@@ -522,7 +526,7 @@ abstract class UnPickler /*extends scala.reflect.generic.UnPickler*/ {
       val outerTag = readByte()
       if (outerTag != TREE)
         errorBadSignature("tree expected (" + outerTag + ")")
-      val end = readNat() + readIndex
+      val end = readEnd()
       val tag = readByte()
       val tpe = if (tag == EMPTYtree) NoType else readTypeRef()
 
@@ -792,7 +796,8 @@ abstract class UnPickler /*extends scala.reflect.generic.UnPickler*/ {
       val tag = readNat()
       if (tag != MODIFIERS)
         errorBadSignature("expected a modifiers tag (" + tag + ")")
-      val end = readNat() + readIndex
+
+      readEnd()
       val pflagsHi = readNat()
       val pflagsLo = readNat()
       val pflags = (pflagsHi.toLong << 32) + pflagsLo
@@ -824,7 +829,6 @@ abstract class UnPickler /*extends scala.reflect.generic.UnPickler*/ {
     protected def readTreeRef(): Tree                 = at(readNat(), readTree)
 
     protected def readTypeNameRef(): TypeName         = readNameRef().toTypeName
-    protected def readTermNameRef(): TermName         = readNameRef().toTermName
 
     protected def readTemplateRef(): Template =
       readTreeRef() match {
@@ -860,11 +864,6 @@ abstract class UnPickler /*extends scala.reflect.generic.UnPickler*/ {
     protected def errorBadSignature(msg: String) =
       throw new RuntimeException("malformed Scala signature of " + classRoot.name + " at " + readIndex + "; " + msg)
 
-    protected def errorMissingRequirement(name: Name, owner: Symbol): Symbol =
-      mirrorThatLoaded(owner).missingHook(owner, name) orElse MissingRequirementError.signal(
-        s"bad reference while unpickling $filename: ${name.longString} not found in ${owner.tpe.widen}"
-      )
-
     def inferMethodAlternative(fun: Tree, argtpes: List[Type], restpe: Type) {} // can't do it; need a compiler for that.
 
     def newLazyTypeRef(i: Int): LazyType = new LazyTypeRef(i)
@@ -876,7 +875,6 @@ abstract class UnPickler /*extends scala.reflect.generic.UnPickler*/ {
      *  error reporting, so we rely on the typechecker to report the error).
      */
     def toTypeError(e: MissingRequirementError) = {
-      // e.printStackTrace()
       new TypeError(e.msg)
     }
 

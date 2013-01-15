@@ -1,6 +1,6 @@
 /*                     __                                               *\
 **     ________ ___   / /  ___     Scala API                            **
-**    / __/ __// _ | / /  / _ |    (c) 2003-2011, LAMP/EPFL             **
+**    / __/ __// _ | / /  / _ |    (c) 2003-2013, LAMP/EPFL             **
 **  __\ \/ /__/ __ |/ /__/ __ |    http://scala-lang.org/               **
 ** /____/\___/_/ |_/____/_/ | |                                         **
 **                          |/                                          **
@@ -231,7 +231,7 @@ extends scala.collection.parallel.BucketCombiner[(K, V), ParHashMap[K, V], Defau
     def setSize(sz: Int) = tableSize = sz
     def insertEntry(/*block: Int, */e: DefaultEntry[K, V]) = {
       var h = index(elemHashCode(e.key))
-      var olde = table(h).asInstanceOf[DefaultEntry[K, V]]
+      val olde = table(h).asInstanceOf[DefaultEntry[K, V]]
 
       // check if key already exists
       var ce = olde

@@ -1,5 +1,5 @@
 /* NSC -- new Scala compiler
- * Copyright 2007-2012 LAMP/EPFL
+ * Copyright 2007-2013 LAMP/EPFL
  * @author Manohar Jonnalagedda
  * @author Gilles Dubochet
  */
@@ -9,7 +9,7 @@ package doc
 package model
 
 import scala.collection._
-import comment._
+import base.comment._
 import diagram._
 
 /** An entity in a Scaladoc universe. Entities are declarations in the program and correspond to symbols in the
@@ -24,10 +24,6 @@ import diagram._
   *  - annotations;
   *  - exported imports. */
 trait Entity {
-
-  /** Similar to symbols, so we can track entities */
-  def id: Int
-
   /** The name of the entity. Note that the name does not qualify this entity uniquely; use its `qualifiedName`
     * instead. */
   def name : String
@@ -98,9 +94,6 @@ trait TemplateEntity extends Entity {
 
   /** Whether documentation is available for this template. */
   def isDocTemplate: Boolean
-
-  /** Whether documentation is available for this template. */
-  def isNoDocMemberTemplate: Boolean
 
   /** Whether this template is a case class. */
   def isCaseClass: Boolean
@@ -176,12 +169,6 @@ trait MemberEntity extends Entity {
 
   /** Whether this member is an abstract type. */
   def isAbstractType: Boolean
-
-  /** Whether this member is a template. */
-  def isTemplate: Boolean
-
-  /** Whether this member is implicit.  */
-  def isImplicit: Boolean
 
   /** Whether this member is abstract. */
   def isAbstract: Boolean
@@ -391,14 +378,9 @@ trait RootPackage extends Package
 
 /** A non-template member (method, value, lazy value, variable, constructor, alias type, and abstract type). */
 trait NonTemplateMemberEntity extends MemberEntity {
-
   /** Whether this member is a use case. A use case is a member which does not exist in the documented code.
     * It corresponds to a real member, and provides a simplified, yet compatible signature for that member. */
   def isUseCase: Boolean
-
-  /** Whether this member is a bridge member. A bridge member does only exist for binary compatibility reasons
-    * and should not appear in ScalaDoc. */
-  def isBridge: Boolean
 }
 
 
@@ -512,12 +494,6 @@ trait ImplicitConversion {
 
   /** The result type after the conversion */
   def targetType: TypeEntity
-
-  /** The result type after the conversion
-   *  Note: not all targetTypes have a corresponding template. Examples include conversions resulting in refinement
-   *  types. Need to check it's not option!
-   */
-  def targetTemplate: Option[TemplateEntity]
 
   /** The components of the implicit conversion type parents */
   def targetTypeComponents: List[(TemplateEntity, TypeEntity)]

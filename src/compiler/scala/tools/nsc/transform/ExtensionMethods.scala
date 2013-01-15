@@ -1,5 +1,5 @@
 /* NSC -- new Scala compiler
- * Copyright 2005-2012 LAMP/EPFL
+ * Copyright 2005-2013 LAMP/EPFL
  * @author Martin Odersky
  */
 package scala.tools.nsc
@@ -8,9 +8,6 @@ package transform
 import symtab._
 import Flags._
 import scala.collection.{ mutable, immutable }
-import scala.collection.mutable
-import scala.tools.nsc.util.FreshNameCreator
-import scala.runtime.ScalaRunTime.{ isAnyVal, isTuple }
 
 /**
  * Perform Step 1 in the inline classes SIP: Creates extension methods for all
@@ -23,7 +20,6 @@ abstract class ExtensionMethods extends Transform with TypingTransformers {
 
   import global._ // the global environment
   import definitions._ // standard classes and methods
-  import typer.{ typed, atOwner } // methods to type trees
 
   /** the following two members override abstract members in Transform */
   val phaseName: String = "extmethods"
@@ -188,7 +184,7 @@ abstract class ExtensionMethods extends Transform with TypingTransformers {
           def makeExtensionMethodSymbol = {
             val extensionName = extensionNames(origMeth).head
             val extensionMeth = (
-              companion.moduleClass.newMethod(extensionName, origMeth.pos, origMeth.flags & ~OVERRIDE & ~PROTECTED | FINAL)
+              companion.moduleClass.newMethod(extensionName.toTermName, origMeth.pos, origMeth.flags & ~OVERRIDE & ~PROTECTED | FINAL)
                 setAnnotations origMeth.annotations
             )
             companion.info.decls.enter(extensionMeth)
@@ -225,9 +221,7 @@ abstract class ExtensionMethods extends Transform with TypingTransformers {
           deriveDefDef(tree)(_ =>
             atOwner(origMeth)(
               localTyper.typedPos(rhs.pos)(
-                (callPrefix /: vparamss) {
-                  case (fn, params) => Apply(fn, params map (param => Ident(param.symbol)))
-                }
+                gen.mkForwarder(callPrefix, mmap(vparamss)(_.symbol))
               )
             )
           )
@@ -238,12 +232,13 @@ abstract class ExtensionMethods extends Transform with TypingTransformers {
 
     override def transformStats(stats: List[Tree], exprOwner: Symbol): List[Tree] =
       super.transformStats(stats, exprOwner) map {
-        case md @ ModuleDef(_, _, _) if extensionDefs contains md.symbol =>
-          val defns = extensionDefs(md.symbol).toList map (member =>
-            atOwner(md.symbol)(localTyper.typedPos(md.pos.focus)(member))
-          )
-          extensionDefs -= md.symbol
-          deriveModuleDef(md)(tmpl => deriveTemplate(tmpl)(_ ++ defns))
+        case md @ ModuleDef(_, _, _) =>
+          val extraStats = extensionDefs remove md.symbol match {
+            case Some(defns) => defns.toList map (defn => atOwner(md.symbol)(localTyper.typedPos(md.pos.focus)(defn.duplicate)))
+            case _           => Nil
+          }
+          if (extraStats.isEmpty) md
+          else deriveModuleDef(md)(tmpl => deriveTemplate(tmpl)(_ ++ extraStats))
         case stat =>
           stat
       }
