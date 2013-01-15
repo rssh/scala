@@ -56,10 +56,6 @@ trait Entity {
 
   /** Indicates whether this entity lives in the types namespace (classes, traits, abstract/alias types) */
   def isType: Boolean
-
-  /** Indicates whether this entity lives in the terms namespace (objects, packages, methods, values) */
-  def isTerm: Boolean
-
 }
 
 object Entity {
