@@ -883,7 +883,7 @@ trait Trees { self: Universe =>
    *
    *  Would be represented as:
    *
-   *    Import(qual, List(("x", "x"), ("y", "z"), (WILDCARD, null)), Nil)
+   *    Import(qual, List(("x", "x"), ("y", "z"), (WILDCARD, null)))
    *
    *  The symbol of an `Import` is an import symbol @see Symbol.newImport.
    *  It's used primarily as a marker to check that the import has been typechecked.
