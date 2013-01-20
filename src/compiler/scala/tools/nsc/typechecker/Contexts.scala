@@ -106,7 +106,7 @@ trait Contexts { self: Analyzer =>
     var sc = startContext
     while (sc != NoContext) {
       sc.tree match {
-        case Import(qual, _, _) => qual setType singleType(qual.symbol.owner.thisType, qual.symbol)
+        case Import(qual, _) => qual setType singleType(qual.symbol.owner.thisType, qual.symbol)
         case _ =>
       }
       sc = sc.outer
@@ -315,10 +315,7 @@ trait Contexts { self: Analyzer =>
 
     def makeNewImport(imp: Import, sym: ImportSymbol): Context =
     {
-     // we can't add generation of implicit imports here, because call if
-     // importInfo.qual.tpe give us 'cyclic reference error'  (we are before typing here)
-     // TODO: check for @exported
-      if (!imp.annotations.isEmpty) {
+      if (!sym.annotations.isEmpty) {
         scope enter sym
       }
       makeNewImportTree(imp: Import)

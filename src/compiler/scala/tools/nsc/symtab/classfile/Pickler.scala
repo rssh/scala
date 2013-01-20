@@ -310,8 +310,8 @@ abstract class Pickler extends SubComponent {
           putTree(rhs)
           putTrees(params)
 
-        case Import(expr, selectors, annotations) =>
-          putTree(makeAnnotated(expr,annotations))
+        case Import(expr, selectors) =>
+          putTree(expr)
           for (ImportSelector(from, _, to, _) <- selectors) {
             putEntry(from)
             putEntry(to)
@@ -752,9 +752,9 @@ abstract class Pickler extends SubComponent {
           writeRefs(params)
           TREE
 
-        case tree@Import(expr, selectors, annotations) =>
+        case tree@Import(expr, selectors) =>
           writeNat(IMPORTtree)
-          writeRef(makeAnnotated(tree, annotations))
+          writeRef(tree.tpe)
           writeRef(tree.symbol)
           writeRef(expr)
           for (ImportSelector(from, _, to, _) <- selectors) {

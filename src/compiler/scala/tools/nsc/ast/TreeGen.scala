@@ -45,7 +45,7 @@ abstract class TreeGen extends scala.reflect.internal.TreeGen with TreeDSL {
           setInfo analyzer.ImportType(qual)
     )
     val importTree = (
-      Import(qual, ImportSelector.wildList, Nil)
+      Import(qual, ImportSelector.wildList)
         setSymbol importSym
           setType NoType
     )

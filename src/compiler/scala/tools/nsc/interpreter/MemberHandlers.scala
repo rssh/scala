@@ -184,7 +184,7 @@ trait MemberHandlers {
   }
 
   class ImportHandler(imp: Import) extends MemberHandler(imp) {
-    val Import(expr, selectors, annotations) = imp
+    val Import(expr, selectors) = imp
     def targetType = intp.global.rootMirror.getModuleIfDefined("" + expr) match {
       case NoSymbol => intp.typeOfExpression("" + expr)
       case sym      => sym.thisType

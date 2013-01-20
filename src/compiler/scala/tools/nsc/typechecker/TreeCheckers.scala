@@ -243,7 +243,7 @@ abstract class TreeCheckers extends Analyzer {
               return fail("tree symbol "+sym+" does not point to enclosing class; tree = ")
 
           /** XXX: temporary while Import nodes are arriving untyped. */
-          case Import(_, _, _) =>
+          case Import(_, _) =>
             return
           case _ =>
         }

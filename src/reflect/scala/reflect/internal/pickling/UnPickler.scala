@@ -609,18 +609,23 @@ abstract class UnPickler {
           })
 
           var base = expr;
-          var annotations: List[Tree] = Nil;
+          //val annotations: List[Annotation] = Nil
+          var create: (Tree => Tree) = ((x:Tree) => Import(x,selectors))
           var endloop = false;
           while(!endloop) {
              base match {
                 case Annotated(annot,base0) => 
-                    annotations = annot::annotations
+                    val prevCreate = create
+                    create = (x:Tree) => Annotated(annot,prevCreate(x))
+                    //annotations = annot::annotations
                     base = base0
                 case _ =>
                     endloop = true
              }
           }
-          Import(expr, selectors, annotations)
+          //var retval = Import(expr,selected);
+          //Import(expr, selectors, annotations)
+          create(base)
 
         case TEMPLATEtree =>
           setSym()

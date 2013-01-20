@@ -43,7 +43,7 @@ abstract class TreeInfo {
    */
   def isInterfaceMember(tree: Tree): Boolean = tree match {
     case EmptyTree                     => true
-    case Import(_, _, _)                  => true
+    case Import(_, _)                  => true
     case TypeDef(_, _, _, _)           => true
     case DefDef(mods, _, _, _, _, __)  => mods.isDeferred
     case ValDef(mods, _, _, _)         => mods.isDeferred
@@ -56,7 +56,7 @@ abstract class TreeInfo {
     case EmptyTree
        | ClassDef(_, _, _, _)
        | TypeDef(_, _, _, _)
-       | Import(_, _, _)
+       | Import(_, _)
        | DefDef(_, _, _, _, _, _) =>
       true
     case ValDef(mods, _, _, rhs) =>
@@ -634,7 +634,7 @@ abstract class TreeInfo {
    *  a class of module with given name (ignoring imports)
    */
   def firstDefinesClassOrObject(trees: List[Tree], name: Name): Boolean = trees match {
-      case Import(_, _, _ ) :: xs               => firstDefinesClassOrObject(xs, name)
+      case Import(_, _) :: xs               => firstDefinesClassOrObject(xs, name)
       case Annotated(_, tree1) :: Nil       => firstDefinesClassOrObject(List(tree1), name)
       case ModuleDef(_, `name`, _) :: Nil   => true
       case ClassDef(_, `name`, _, _) :: Nil => true
@@ -649,7 +649,7 @@ abstract class TreeInfo {
     // Top-level definition whose leading imports include Predef.
     def isLeadingPredefImport(defn: Tree): Boolean = defn match {
       case PackageDef(_, defs1) => defs1 exists isLeadingPredefImport
-      case Import(expr, _, _ )      => isReferenceToPredef(expr)
+      case Import(expr, _)      => isReferenceToPredef(expr)
       case _                    => false
     }
     // Compilation unit is class or object 'name' in package 'scala'

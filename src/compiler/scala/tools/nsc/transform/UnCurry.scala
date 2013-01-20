@@ -502,7 +502,7 @@ abstract class UnCurry extends InfoTransform
           case Template(_, _, _) =>
             withInConstructorFlag(0) { super.transform(tree) }
 
-          case Import(_,_,_) =>
+          case Import(_,_) =>
             super.transform(tree) 
 
           case _ =>

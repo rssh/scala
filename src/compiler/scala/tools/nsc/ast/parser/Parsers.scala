@@ -339,7 +339,7 @@ self =>
         /** For now we require there only be one top level object. */
         var seenModule = false
         val newStmts = stmts collect {
-          case t @ Import(_, _, _) => t
+          case t @ Import(_, _) => t
           case md @ ModuleDef(mods, name, template) if !seenModule && (md exists isMainMethod) =>
             seenModule = true
             /** This slightly hacky situation arises because we have no way to communicate
@@ -2291,6 +2291,11 @@ self =>
         accept(DOT)
         result
       }
+      def createAnnotated(annotations:List[Tree], t:Tree): Tree =
+        annotations match {
+          case Nil => t
+          case head::tail => Annotated(head,createAnnotated(tail,t))
+        }
       /** Walks down import `foo.bar.baz.{ ... }` until it ends at a
        *  an underscore, a left brace, or an undotted identifier.
        */
@@ -2312,7 +2317,7 @@ self =>
             else List(makeImportSelector(name, nameOffset))
         }
         // reaching here means we're done walking.
-	atPos(start)(Import(expr, selectors, annotations))
+	atPos(start)(createAnnotated(annotations,Import(expr, selectors)))
       }
 
       loop(in.token match {

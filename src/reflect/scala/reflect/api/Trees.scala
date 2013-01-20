@@ -874,7 +874,7 @@ trait Trees { self: Universe =>
   /** An extractor class to create and pattern match with syntax `Import(expr, selectors)`.
    *  This AST node corresponds to the following Scala code:
    *
-   *    {annotations} import expr.{selectors}
+   *    import expr.{selectors}
    *
    *  Selectors are a list of ImportSelectors, which conceptually are pairs of names (from, to).
    *  The last (and maybe only name) may be a nme.WILDCARD. For instance:
@@ -890,8 +890,8 @@ trait Trees { self: Universe =>
    *  @group Extractors
    */
   abstract class ImportExtractor {
-    def apply(expr: Tree, selectors: List[ImportSelector], annotations:List[Tree]): Import
-    def unapply(import_ : Import): Option[(Tree, List[ImportSelector], List[Tree])]
+    def apply(expr: Tree, selectors: List[ImportSelector]): Import
+    def unapply(import_ : Import): Option[(Tree, List[ImportSelector])]
   }
 
   /** The API that all imports support
@@ -2085,10 +2085,10 @@ trait Trees { self: Universe =>
     def value: Constant
   }
 
-  /** A tree that has an annotation attached to it. Only used for annotated types and
-   *  annotation ascriptions, annotations on definitions are stored in the Modifiers.
-   *  Eliminated by typechecker (typedAnnotated), the annotations are then stored in
-   *  an AnnotatedType.
+  /** A tree that has an annotation attached to it. Only used for annotated types, 
+   *  annotation ascriptions and imports, annotations on definitions are stored in 
+   *  the Modifiers. Eliminated by typechecker (typedAnnotated for types, 
+   *  typedStats -- for imports), the annotations for types are then stored in an AnnotatedType;
    *  @group Trees
    *  @template
    */
@@ -2676,7 +2676,7 @@ trait Trees { self: Universe =>
      *  Having a tree as a prototype means that the tree's attachments, type and symbol will be copied into the result.
      *  annotations will be put into tee-s symbol.
      */
-    def Import(tree: Tree, expr: Tree, selectors: List[ImportSelector], annotations: List[Tree]): Import
+    def Import(tree: Tree, expr: Tree, selectors: List[ImportSelector]): Import
 
     /** Creates a `Template` node from the given components, having a given `tree` as a prototype.
      *  Having a tree as a prototype means that the tree's attachments, type and symbol will be copied into the result.

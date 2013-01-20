@@ -676,7 +676,7 @@ class Global(settings: Settings, _reporter: Reporter, projectName: String = "") 
       val tree = locateTree(pos)
       debugLog("at pos "+pos+" was found: "+tree.getClass+" "+tree.pos.show)
       tree match {
-        case Import(expr, _, _) =>
+        case Import(expr, _) =>
           debugLog("import found"+expr.tpe+(if (expr.tpe == null) "" else " "+expr.tpe.members))
         case _ =>
       }
@@ -790,7 +790,7 @@ class Global(settings: Settings, _reporter: Reporter, projectName: String = "") 
       singleType(NoPrefix, tree.symbol)
     case Select(qual, _) if qual.tpe != null && tree.symbol.isStable =>
       singleType(qual.tpe, tree.symbol)
-    case Import(expr, selectors, annotations) =>
+    case Import(expr, selectors) =>
       tree.symbol.info match {
         case analyzer.ImportType(expr) => expr match {
           case s@Select(qual, name) => singleType(qual.tpe, s.symbol)

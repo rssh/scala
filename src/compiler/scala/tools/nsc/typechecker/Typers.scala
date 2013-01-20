@@ -2741,7 +2741,7 @@ trait Typers extends Adaptations with Tags {
           OnlyDeclarationsError(stat)
         else
           stat match {
-            case imp @ Import(_, _,_) =>
+            case tree@MaybeAnnotatedImport(imp,_) =>
               imp.symbol.initialize
               if (!imp.symbol.isError) {
                 imp.symbol match {
@@ -5123,12 +5123,14 @@ trait Typers extends Adaptations with Tags {
           // whatever type to tree; we just have to survive until a real error message is issued.
           tree setType AnyClass.tpe
       }
+
       def typedFunction(fun: Function) = {
         if (fun.symbol == NoSymbol)
           fun.symbol = context.owner.newAnonymousFunctionValue(fun.pos)
 
         typerWithLocalContext(context.makeNewScope(fun, fun.symbol))(_.typedFunction(fun, mode, pt))
       }
+
 
       // begin typed1
       //if (settings.debug.value && tree.isDef) log("typing definition of "+sym);//DEBUG
@@ -5175,7 +5177,8 @@ trait Typers extends Adaptations with Tags {
         case tree: ApplyDynamic                 => typedApplyDynamic(tree)
         case tree: ReferenceToBoxed             => typedReferenceToBoxed(tree)
         case tree: TypeTreeWithDeferredRefCheck => tree // TODO: retype the wrapped tree? TTWDRC would have to change to hold the wrapped tree (not a closure)
-        case tree: Import                       => assert(forInteractive, "!forInteractive") ; tree setType tree.symbol.tpe // should not happen in normal circumstances.
+	case tree: Import                       => assert(forInteractive, "!forInteractive, tree="+tree) ; tree setType tree.symbol.tpe // should not happen in normal circumstances.
+        //case tree: Import                       => tree setType tree.symbol.tpe
         case _                                  => abort(s"unexpected tree: ${tree.getClass}\n$tree")
       }
     }
