@@ -63,7 +63,7 @@ trait ScaladocAnalyzer extends Analyzer {
         newUnitParser(new CompilationUnit(file))
       }
 
-      val trees = stringParser(useCase.body+";").nonLocalDefOrDcl
+      val trees = stringParser(useCase.body+";").nonLocalDefOrDclOrAnnotatedImport
       val enclClass = context.enclClass.owner
 
       def defineAlias(name: Name) = (
