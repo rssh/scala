@@ -128,7 +128,7 @@ trait Printers extends scala.reflect.internal.Printers { this: Global =>
         case Select(qualifier, name) =>
           printTree(qualifier)
           print(".")
-          print(quotedName(name, true))
+          print(quotedName(name, decode = true))
 
         // target.toString() ==> target.toString
         case Apply(fn, Nil)   => printTree(fn)
@@ -152,7 +152,7 @@ trait Printers extends scala.reflect.internal.Printers { this: Global =>
         // If thenp or elsep has only one statement, it doesn't need more than one line.
         case If(cond, thenp, elsep) =>
           def ifIndented(x: Tree) = {
-            indent ; println() ; printTree(x) ; undent
+            indent() ; println() ; printTree(x) ; undent()
           }
 
           val List(thenStmts, elseStmts) = List(thenp, elsep) map allStatements
@@ -166,12 +166,12 @@ trait Printers extends scala.reflect.internal.Printers { this: Global =>
 
           if (elseStmts.nonEmpty) {
             print(" else")
-            indent ; println()
+            indent() ; println()
             elseStmts match {
               case List(x)  => printTree(x)
               case _        => printTree(elsep)
             }
-            undent ; println()
+            undent() ; println()
           }
         case _        => s()
       }

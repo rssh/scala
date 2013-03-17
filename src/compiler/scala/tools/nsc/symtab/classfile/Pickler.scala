@@ -31,18 +31,6 @@ abstract class Pickler extends SubComponent {
   def newPhase(prev: Phase): StdPhase = new PicklePhase(prev)
 
   class PicklePhase(prev: Phase) extends StdPhase(prev) {
-    override def run() {
-      super.run()
-      // This is run here rather than after typer because I found
-      // some symbols - usually annotations, possibly others - had not
-      // yet performed the necessary symbol lookup, leading to
-      // spurious claims of unusedness.
-      if (settings.lint.value) {
-        log("Clearing recorded import selectors.")
-        analyzer.clearUnusedImports()
-      }
-    }
-
     def apply(unit: CompilationUnit) {
       def pickle(tree: Tree) {
         def add(sym: Symbol, pickle: Pickle) = {
@@ -83,8 +71,6 @@ abstract class Pickler extends SubComponent {
       }
 
       pickle(unit.body)
-      if (settings.lint.value)
-        analyzer.warnUnusedImports(unit)
     }
   }
 
@@ -179,7 +165,7 @@ abstract class Pickler extends SubComponent {
           putSymbol(sym.privateWithin)
           putType(sym.info)
           if (sym.thisSym.tpeHK != sym.tpeHK)
-            putType(sym.typeOfThis);
+            putType(sym.typeOfThis)
           putSymbol(sym.alias)
           if (!sym.children.isEmpty) {
             val (locals, globals) = sym.children partition (_.isLocalClass)
@@ -246,8 +232,8 @@ abstract class Pickler extends SubComponent {
 //          val savedBoundSyms = boundSyms // boundSyms are known to be local based on the EXISTENTIAL flag  (see isLocal)
 //          boundSyms = tparams ::: boundSyms
 //          try {
-            putType(restpe);
-//          } finally {
+            putType(restpe)
+            //          } finally {
 //            boundSyms = savedBoundSyms
 //          }
           putSymbols(tparams)
@@ -542,7 +528,7 @@ abstract class Pickler extends SubComponent {
     private def writeSymInfo(sym: Symbol) {
       writeRef(sym.name)
       writeRef(localizedOwner(sym))
-      writeLongNat((rawToPickledFlags(sym.flags & PickledFlags)))
+      writeLongNat((rawToPickledFlags(sym.rawflags & PickledFlags)))
       if (sym.hasAccessBoundary) writeRef(sym.privateWithin)
       writeRef(sym.info)
     }

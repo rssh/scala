@@ -39,6 +39,7 @@ abstract class SymbolTable extends macros.Universe
                               with StdAttachments
                               with StdCreators
                               with BuildUtils
+                              with PrivateWithin
 {
 
   val gen = new TreeGen { val global: SymbolTable.this.type = SymbolTable.this }
@@ -83,6 +84,16 @@ abstract class SymbolTable extends macros.Universe
   @inline
   final private[scala] def logResult[T](msg: => String)(result: T): T = {
     log(msg + ": " + result)
+    result
+  }
+  @inline
+  final private[scala] def debuglogResult[T](msg: => String)(result: T): T = {
+    debuglog(msg + ": " + result)
+    result
+  }
+  @inline
+  final private[scala] def devWarningResult[T](msg: => String)(result: T): T = {
+    devWarning(msg + ": " + result)
     result
   }
   @inline
@@ -221,7 +232,7 @@ abstract class SymbolTable extends macros.Universe
     def noChangeInBaseClasses(it: InfoTransformer, limit: Phase#Id): Boolean = (
       it.pid >= limit ||
       !it.changesBaseClasses && noChangeInBaseClasses(it.next, limit)
-    );
+    )
     period != 0 && runId(period) == currentRunId && {
       val pid = phaseId(period)
       if (phase.id > pid) noChangeInBaseClasses(infoTransformers.nextFrom(pid), phase.id)

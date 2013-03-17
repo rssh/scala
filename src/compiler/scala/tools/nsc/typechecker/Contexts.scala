@@ -8,6 +8,7 @@ package typechecker
 
 import scala.collection.mutable
 import scala.annotation.tailrec
+import scala.reflect.internal.util.shortClassOfInstance
 
 /**
  *  @author  Martin Odersky
@@ -39,7 +40,7 @@ trait Contexts { self: Analyzer =>
   def ambiguousDefnAndImport(owner: Symbol, imp: ImportInfo) =
     LookupAmbiguous(s"it is both defined in $owner and imported subsequently by \n$imp")
 
-  private val startContext = {
+  private lazy val startContext = {
     NoContext.make(
     Template(List(), emptyValDef, List()) setSymbol global.NoSymbol setType global.NoType,
     rootMirror.RootClass,
@@ -51,20 +52,17 @@ trait Contexts { self: Analyzer =>
   private lazy val allImportInfos =
     mutable.Map[CompilationUnit, List[ImportInfo]]() withDefaultValue Nil
 
-  def clearUnusedImports() {
-    allUsedSelectors.clear()
-    allImportInfos.clear()
-  }
   def warnUnusedImports(unit: CompilationUnit) = {
-    val imps = allImportInfos(unit).reverse.distinct
+    for (imps <- allImportInfos.remove(unit)) {
+      for (imp <- imps.reverse.distinct) {
+        val used = allUsedSelectors(imp)
+        def isMask(s: ImportSelector) = s.name != nme.WILDCARD && s.rename == nme.WILDCARD
 
-    for (imp <- imps) {
-      val used = allUsedSelectors(imp)
-      def isMask(s: ImportSelector) = s.name != nme.WILDCARD && s.rename == nme.WILDCARD
-
-      imp.tree.selectors filterNot (s => isMask(s) || used(s)) foreach { sel =>
-        unit.warning(imp posOf sel, "Unused import")
+        imp.tree.selectors filterNot (s => isMask(s) || used(s)) foreach { sel =>
+          unit.warning(imp posOf sel, "Unused import")
+        }
       }
+      allUsedSelectors --= imps
     }
   }
 
@@ -87,8 +85,8 @@ trait Contexts { self: Analyzer =>
     else RootImports.completeList
   }
 
-  def rootContext(unit: CompilationUnit): Context             = rootContext(unit, EmptyTree, false)
-  def rootContext(unit: CompilationUnit, tree: Tree): Context = rootContext(unit, tree, false)
+  def rootContext(unit: CompilationUnit): Context             = rootContext(unit, EmptyTree, erasedTypes = false)
+  def rootContext(unit: CompilationUnit, tree: Tree): Context = rootContext(unit, tree, erasedTypes = false)
   def rootContext(unit: CompilationUnit, tree: Tree, erasedTypes: Boolean): Context = {
     var sc = startContext
     for (sym <- rootImports(unit)) {
@@ -175,6 +173,7 @@ trait Contexts { self: Analyzer =>
       if ((owner eq NoSymbol) || (owner.isClass) || (owner.isMethod)) this
       else outer.enclClassOrMethod
 
+    def enclosingCaseDef = nextEnclosing(_.tree.isInstanceOf[CaseDef])
     def undetparamsString =
       if (undetparams.isEmpty) ""
       else undetparams.mkString("undetparams=", ", ", "")
@@ -374,6 +373,16 @@ trait Contexts { self: Analyzer =>
       c
     }
 
+    /**
+     * A context for typing constructor parameter ValDefs, super or self invocation arguments and default getters
+     * of constructors. These expressions need to be type checked in a scope outside the class, cf. spec 5.3.1.
+     *
+     * This method is called by namer / typer where `this` is the context for the constructor DefDef. The
+     * owner of the resulting (new) context is the outer context for the Template, i.e. the context for the
+     * ClassDef. This means that class type parameters will be in scope. The value parameters of the current
+     * constructor are also entered into the new constructor scope. Members of the class however will not be
+     * accessible.
+     */
     def makeConstructorContext = {
       var baseContext = enclClass.outer
       while (baseContext.tree.isInstanceOf[Template])
@@ -393,6 +402,8 @@ trait Contexts { self: Analyzer =>
           enterLocalElems(c.scope.elems)
         }
       }
+      // Enter the scope elements of this (the scope for the constructor DefDef) into the new constructor scope.
+      // Concretely, this will enter the value parameters of constructor.
       enterElems(this)
       argContext
     }
@@ -445,7 +456,7 @@ trait Contexts { self: Analyzer =>
       else throw new TypeError(pos, msg1)
     }
 
-    def warning(pos: Position, msg: String): Unit = warning(pos, msg, false)
+    def warning(pos: Position, msg: String): Unit = warning(pos, msg, force = false)
     def warning(pos: Position, msg: String, force: Boolean) {
       if (reportErrors || force) unit.warning(pos, msg)
       else if (bufferErrors) warningsBuffer += ((pos, msg))
@@ -574,8 +585,7 @@ trait Contexts { self: Analyzer =>
              (  superAccess
              || pre.isInstanceOf[ThisType]
              || phase.erasedTypes
-             || isProtectedAccessOK(sym)
-             || (sym.allOverriddenSymbols exists isProtectedAccessOK)
+             || (sym.overrideChain exists isProtectedAccessOK)
                 // that last condition makes protected access via self types work.
              )
         )
@@ -586,23 +596,39 @@ trait Contexts { self: Analyzer =>
     }
 
     def pushTypeBounds(sym: Symbol) {
+      sym.info match {
+        case tb: TypeBounds => if (!tb.isEmptyBounds) log(s"Saving $sym info=$tb")
+        case info           => devWarning(s"Something other than a TypeBounds seen in pushTypeBounds: $info is a ${shortClassOfInstance(info)}")
+      }
       savedTypeBounds ::= ((sym, sym.info))
     }
 
     def restoreTypeBounds(tp: Type): Type = {
-      var current = tp
-      for ((sym, info) <- savedTypeBounds) {
-        debuglog("resetting " + sym + " to " + info);
-        sym.info match {
-          case TypeBounds(lo, hi) if (hi <:< lo && lo <:< hi) =>
-            current = current.instantiateTypeParams(List(sym), List(lo))
-//@M TODO: when higher-kinded types are inferred, probably need a case PolyType(_, TypeBounds(...)) if ... =>
-          case _ =>
-        }
-        sym.setInfo(info)
+      def restore(): Type = savedTypeBounds.foldLeft(tp) { case (current, (sym, savedInfo)) =>
+        def bounds_s(tb: TypeBounds) = if (tb.isEmptyBounds) "<empty bounds>" else s"TypeBounds(lo=${tb.lo}, hi=${tb.hi})"
+        //@M TODO: when higher-kinded types are inferred, probably need a case PolyType(_, TypeBounds(...)) if ... =>
+        val tb @ TypeBounds(lo, hi) = sym.info.bounds
+        val isUnique                = lo <:< hi && hi <:< lo
+        val isPresent               = current contains sym
+        def saved_s                 = bounds_s(savedInfo.bounds)
+        def current_s               = bounds_s(sym.info.bounds)
+
+        if (isUnique && isPresent)
+          devWarningResult(s"Preserving inference: ${sym.nameString}=$hi in $current (based on $current_s) before restoring $sym to saved $saved_s")(
+            current.instantiateTypeParams(List(sym), List(hi))
+          )
+        else if (isPresent)
+          devWarningResult(s"Discarding inferred $current_s because it does not uniquely determine $sym in")(current)
+        else
+          logResult(s"Discarding inferred $current_s because $sym does not appear in")(current)
       }
-      savedTypeBounds = List()
-      current
+      try restore()
+      finally {
+        for ((sym, savedInfo) <- savedTypeBounds)
+          sym setInfo debuglogResult(s"Discarding inferred $sym=${sym.info}, restoring saved info")(savedInfo)
+
+        savedTypeBounds = Nil
+      }
     }
 
     private var implicitsCache: List[List[ImplicitInfo]] = null
@@ -630,8 +656,15 @@ trait Contexts { self: Analyzer =>
       for (sym <- syms.toList if isQualifyingImplicit(sym.name, sym, pre, imported)) yield
         new ImplicitInfo(sym.name, pre, sym)
 
-    private def collectImplicitInImports(imp: ImportInfo): List[ImplicitInfo] = {
-      val pre = imp.qual.tpe
+    private def collectImplicitImports(imp: ImportInfo): List[ImplicitInfo] = {
+      val qual = imp.qual
+
+      val pre =
+        if (qual.tpe.typeSymbol.isPackageClass)
+          // SI-6225 important if the imported symbol is inherited by the the package object.
+          singleType(qual.tpe, qual.tpe member nme.PACKAGE)
+        else
+          qual.tpe
       def collect(sels: List[ImportSelector]): List[ImplicitInfo] = sels match {
         case List() =>
           List()

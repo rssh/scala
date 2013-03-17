@@ -143,7 +143,7 @@ abstract class LambdaLift extends InfoTransform {
             ss addEntry sym
             renamable addEntry sym
             changedFreeVars = true
-            debuglog("" + sym + " is free in " + enclosure);
+            debuglog("" + sym + " is free in " + enclosure)
             if (sym.isVariable) sym setFlag CAPTURED
           }
           !enclosure.isClass
@@ -161,7 +161,7 @@ abstract class LambdaLift extends InfoTransform {
     private val freeVarTraverser = new Traverser {
       override def traverse(tree: Tree) {
        try { //debug
-        val sym = tree.symbol;
+        val sym = tree.symbol
         tree match {
           case ClassDef(_, _, _, _) =>
             liftedDefs(tree.symbol) = Nil
@@ -317,7 +317,7 @@ abstract class LambdaLift extends InfoTransform {
       else searchIn(currentOwner)
     }
 
-    private def memberRef(sym: Symbol) = {
+    private def memberRef(sym: Symbol): Tree = {
       val clazz = sym.owner.enclClass
       //Console.println("memberRef from "+currentClass+" to "+sym+" in "+clazz)
       def prematureSelfReference() {
@@ -331,12 +331,17 @@ abstract class LambdaLift extends InfoTransform {
         if (clazz == currentClass) gen.mkAttributedThis(clazz)
         else {
           sym resetFlag (LOCAL | PRIVATE)
-          if (selfOrSuperCalls exists (_.owner == clazz)) {
+          if (isUnderConstruction(clazz)) {
             prematureSelfReference()
             EmptyTree
           }
           else if (clazz.isStaticOwner) gen.mkAttributedQualifier(clazz.thisType)
-          else outerPath(outerValue, currentClass.outerClass, clazz)
+          else {
+            outerValue match {
+              case EmptyTree => prematureSelfReference(); return EmptyTree
+              case o         => outerPath(o, currentClass.outerClass, clazz)
+            }
+          }
         }
       Select(qual, sym) setType sym.tpe
     }
@@ -451,20 +456,45 @@ abstract class LambdaLift extends InfoTransform {
                 }
               case arg => arg
             }
-            /** Wrap expr argument in new *Ref(..) constructor, but make
-             *  sure that Try expressions stay at toplevel.
+
+            /** Wrap expr argument in new *Ref(..) constructor. But try/catch
+             * is a problem because a throw will clear the stack and post catch
+             * we would expect the partially-constructed object to be on the stack
+             * for the call to init. So we recursively
+             * search for "leaf" result expressions where we know its safe
+             * to put the new *Ref(..) constructor or, if all else fails, transform
+             * an expr to { val temp=expr; new *Ref(temp) }.
+             * The reason we narrowly look for try/catch in captured var definitions
+             * is because other try/catch expression have already been lifted
+             * see SI-6863
              */
-            def refConstr(expr: Tree): Tree = expr match {
+            def refConstr(expr: Tree): Tree = typer.typedPos(expr.pos)(expr match {
+              // very simple expressions can be wrapped in a new *Ref(expr) because they can't have
+              // a try/catch in final expression position.
+              case Ident(_) | Apply(_, _) | Literal(_) | New(_) | Select(_, _) | Throw(_) | Assign(_, _) | ValDef(_, _, _, _) | Return(_) | EmptyTree =>
+                New(sym.tpe, expr)
               case Try(block, catches, finalizer) =>
                 Try(refConstr(block), catches map refConstrCase, finalizer)
+              case Block(stats, expr) =>
+                Block(stats, refConstr(expr))
+              case If(cond, trueBranch, falseBranch) =>
+                If(cond, refConstr(trueBranch), refConstr(falseBranch))
+              case Match(selector, cases) =>
+                Match(selector, cases map refConstrCase)
+              // if we can't figure out what else to do, turn expr into {val temp1 = expr; new *Ref(temp1)} to avoid
+              // any possibility of try/catch in the *Ref constructor. This should be a safe tranformation as a default
+              // though it potentially wastes a variable slot. In particular this case handles LabelDefs.
               case _ =>
-                New(sym.tpe, expr)
-            }
+                debuglog("assigning expr to temp: " + (expr.pos))
+                val tempSym = currentOwner.newValue(unit.freshTermName("temp"), expr.pos) setInfo expr.tpe
+                val tempDef = ValDef(tempSym, expr) setPos expr.pos
+                val tempRef = Ident(tempSym) setPos expr.pos
+                Block(tempDef, New(sym.tpe, tempRef))
+            })
             def refConstrCase(cdef: CaseDef): CaseDef =
               CaseDef(cdef.pat, cdef.guard, refConstr(cdef.body))
-            treeCopy.ValDef(tree, mods, name, tpt1, typer.typedPos(rhs.pos) {
-              refConstr(constructorArg)
-            })
+
+            treeCopy.ValDef(tree, mods, name, tpt1, refConstr(constructorArg))
           } else tree
         case Return(Block(stats, value)) =>
           Block(stats, treeCopy.Return(tree, value)) setType tree.tpe setPos tree.pos
@@ -508,25 +538,13 @@ abstract class LambdaLift extends InfoTransform {
 
     private def preTransform(tree: Tree) = super.transform(tree) setType lifted(tree.tpe)
 
-    /** The stack of constructor symbols in which a call to this() or to the super
-      * constructor is active.
-      */
-    private val selfOrSuperCalls = mutable.Stack[Symbol]()
-    @inline private def inSelfOrSuperCall[A](sym: Symbol)(a: => A) = try {
-      selfOrSuperCalls push sym
-      a
-    } finally selfOrSuperCalls.pop()
-
     override def transform(tree: Tree): Tree = tree match {
       case Select(ReferenceToBoxed(idt), elem) if elem == nme.elem =>
         postTransform(preTransform(idt), isBoxedRef = false)
       case ReferenceToBoxed(idt) =>
         postTransform(preTransform(idt), isBoxedRef = true)
       case _ =>
-        def transformTree = postTransform(preTransform(tree))
-        if (treeInfo isSelfOrSuperConstrCall tree)
-          inSelfOrSuperCall(currentOwner)(transformTree)
-        else transformTree
+        postTransform(preTransform(tree))
     }
 
     /** Transform statements and add lifted definitions to them. */

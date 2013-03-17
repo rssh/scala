@@ -24,8 +24,8 @@ abstract class Constructors extends Transform with ast.TreeDSL {
   protected def newTransformer(unit: CompilationUnit): Transformer =
     new ConstructorTransformer(unit)
 
-  private val guardedCtorStats: mutable.Map[Symbol, List[Tree]] = perRunCaches.newMap[Symbol, List[Tree]]
-  private val ctorParams: mutable.Map[Symbol, List[Symbol]] = perRunCaches.newMap[Symbol, List[Symbol]]
+  private val guardedCtorStats: mutable.Map[Symbol, List[Tree]] = perRunCaches.newMap[Symbol, List[Tree]]()
+  private val ctorParams: mutable.Map[Symbol, List[Symbol]] = perRunCaches.newMap[Symbol, List[Symbol]]()
 
   class ConstructorTransformer(unit: CompilationUnit) extends Transformer {
 
@@ -34,6 +34,41 @@ abstract class Constructors extends Transform with ast.TreeDSL {
       val stats = impl.body          // the transformed template body
       val localTyper = typer.atOwner(impl, clazz)
 
+      // Inspect for obvious out-of-order initialization; concrete, eager vals or vars,
+      // declared in this class, for which a reference to the member precedes its definition.
+      def checkableForInit(sym: Symbol) = (
+           (sym ne null)
+        && (sym.isVal || sym.isVar)
+        && !(sym hasFlag LAZY | DEFERRED | SYNTHETIC)
+      )
+      val uninitializedVals = mutable.Set[Symbol](
+        stats collect { case vd: ValDef if checkableForInit(vd.symbol) => vd.symbol.accessedOrSelf }: _*
+      )
+      if (uninitializedVals.nonEmpty)
+        log("Checking constructor for init order issues among: " + uninitializedVals.map(_.name).mkString(", "))
+
+      for (stat <- stats) {
+        // Checking the qualifier symbol is necessary to prevent a selection on
+        // another instance of the same class from potentially appearing to be a forward
+        // reference on the member in the current class.
+        def check(tree: Tree) = {
+          for (t <- tree) t match {
+            case t: RefTree if uninitializedVals(t.symbol.accessedOrSelf) && t.qualifier.symbol == clazz =>
+              unit.warning(t.pos, s"Reference to uninitialized ${t.symbol.accessedOrSelf}")
+            case _ =>
+          }
+        }
+        stat match {
+          case vd: ValDef      =>
+            // doing this first allows self-referential vals, which to be a conservative
+            // warner we will do because it's possible though difficult for it to be useful.
+            uninitializedVals -= vd.symbol.accessedOrSelf
+            if (!vd.symbol.isLazy)
+              check(vd.rhs)
+          case _: MemberDef    => // skip other member defs
+          case t               => check(t) // constructor body statement
+        }
+      }
       val specializedFlag: Symbol = clazz.info.decl(nme.SPECIALIZED_INSTANCE)
       val shouldGuard = (specializedFlag != NoSymbol) && !clazz.hasFlag(SPECIALIZED)
 
@@ -188,7 +223,7 @@ abstract class Constructors extends Transform with ast.TreeDSL {
           // Lazy vals don't get the assignment in the constructor.
           if (!stat.symbol.tpe.isInstanceOf[ConstantType]) {
             if (rhs != EmptyTree && !stat.symbol.isLazy) {
-              val rhs1 = intoConstructor(stat.symbol, rhs);
+              val rhs1 = intoConstructor(stat.symbol, rhs)
               (if (canBeMoved(stat)) constrPrefixBuf else constrStatBuf) += mkAssign(
                 stat.symbol, rhs1)
             }

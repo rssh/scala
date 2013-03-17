@@ -213,15 +213,22 @@ abstract class UnCurry extends InfoTransform
      *    new $anon()
      *
      */
-    def transformFunction(fun: Function): Tree =
+    def transformFunction(fun: Function): Tree = {
+      fun.tpe match {
+        // can happen when analyzer plugins assign refined types to functions, e.g.
+        // (() => Int) { def apply(): Int @typeConstraint }
+        case RefinedType(List(funTp), decls) =>
+          debuglog(s"eliminate refinement from function type ${fun.tpe}")
+          fun.tpe = funTp
+        case _ =>
+          ()
+      }
+
       deEta(fun) match {
         // nullary or parameterless
         case fun1 if fun1 ne fun => fun1
         case _ =>
-          val parents = (
-            if (isFunctionType(fun.tpe)) addSerializable(abstractFunctionForFunctionType(fun.tpe))
-            else addSerializable(ObjectClass.tpe, fun.tpe)
-          )
+          val parents = addSerializable(abstractFunctionForFunctionType(fun.tpe))
           val anonClass = fun.symbol.owner newAnonymousFunctionClass(fun.pos, inConstructorFlag) addAnnotation serialVersionUIDAnnotation
           anonClass setInfo ClassInfoType(parents, newScope, anonClass)
 
@@ -254,6 +261,7 @@ abstract class UnCurry extends InfoTransform
           }
 
       }
+    }
 
     def transformArgs(pos: Position, fun: Symbol, args: List[Tree], formals: List[Type]) = {
       val isJava = fun.isJavaDefined
@@ -428,7 +436,7 @@ abstract class UnCurry extends InfoTransform
 
             if (dd.symbol hasAnnotation VarargsClass) saveRepeatedParams(dd)
 
-            withNeedLift(false) {
+            withNeedLift(needLift = false) {
               if (dd.symbol.isClassConstructor) {
                 atOwner(sym) {
                   val rhs1 = (rhs: @unchecked) match {
@@ -451,14 +459,12 @@ abstract class UnCurry extends InfoTransform
             }
           case ValDef(_, _, _, rhs) =>
             if (sym eq NoSymbol) throw new IllegalStateException("Encountered Valdef without symbol: "+ tree + " in "+ unit)
-            // a local variable that is mutable and free somewhere later should be lifted
-            // as lambda lifting (coming later) will wrap 'rhs' in an Ref object.
             if (!sym.owner.isSourceMethod)
-              withNeedLift(true) { super.transform(tree) }
+              withNeedLift(needLift = true) { super.transform(tree) }
             else
               super.transform(tree)
           case UnApply(fn, args) =>
-            val fn1 = withInPattern(false)(transform(fn))
+            val fn1 = withInPattern(value = false)(transform(fn))
             val args1 = transformTrees(fn.symbol.name match {
               case nme.unapply    => args
               case nme.unapplySeq => transformArgs(tree.pos, fn.symbol, args, analyzer.unapplyTypeList(fn.pos, fn.symbol, fn.tpe, args.length))
@@ -474,13 +480,13 @@ abstract class UnCurry extends InfoTransform
             }
 
           case Assign(_: RefTree, _) =>
-            withNeedLift(true) { super.transform(tree) }
+            withNeedLift(needLift = true) { super.transform(tree) }
 
           case Assign(lhs, _) if lhs.symbol.owner != currentMethod || lhs.symbol.hasFlag(LAZY | ACCESSOR) =>
-            withNeedLift(true) { super.transform(tree) }
+            withNeedLift(needLift = true) { super.transform(tree) }
 
           case ret @ Return(_) if (isNonLocalReturn(ret)) =>
-            withNeedLift(true) { super.transform(ret) }
+            withNeedLift(needLift = true) { super.transform(ret) }
 
           case Try(_, Nil, _) =>
             // try-finally does not need lifting: lifting is needed only for try-catch
@@ -494,7 +500,7 @@ abstract class UnCurry extends InfoTransform
             else super.transform(tree)
 
           case CaseDef(pat, guard, body) =>
-            val pat1 = withInPattern(true)(transform(pat))
+            val pat1 = withInPattern(value = true)(transform(pat))
             treeCopy.CaseDef(tree, pat1, transform(guard), transform(body))
 
           case fun @ Function(_, _) =>
@@ -566,15 +572,22 @@ abstract class UnCurry extends InfoTransform
           }
 
         case dd @ DefDef(_, _, _, vparamss0, _, rhs0) =>
-          val vparamss1 = vparamss0 match {
-            case _ :: Nil  => vparamss0
-            case _         => vparamss0.flatten :: Nil
-          }
+          val (newParamss, newRhs): (List[List[ValDef]], Tree) =
+            if (dependentParamTypeErasure isDependent dd)
+              dependentParamTypeErasure erase dd
+            else {
+              val vparamss1 = vparamss0 match {
+                case _ :: Nil => vparamss0
+                case _        => vparamss0.flatten :: Nil
+              }
+              (vparamss1, rhs0)
+            }
+
           val flatdd = copyDefDef(dd)(
-            vparamss = vparamss1,
+            vparamss = newParamss,
             rhs = nonLocalReturnKeys get dd.symbol match {
-              case Some(k) => atPos(rhs0.pos)(nonLocalReturnTry(rhs0, k, dd.symbol))
-              case None    => rhs0
+              case Some(k) => atPos(newRhs.pos)(nonLocalReturnTry(newRhs, k, dd.symbol))
+              case None    => newRhs
             }
           )
           addJavaVarargsForwarders(dd, flatdd)
@@ -601,6 +614,104 @@ abstract class UnCurry extends InfoTransform
           if (tree.isType) TypeTree(tree.tpe) setPos tree.pos else tree
       }
     }
+
+    /**
+     * When we concatenate parameter lists, formal parameter types that were dependent
+     * on prior parameter values will no longer be correctly scoped.
+     *
+     * For example:
+     *
+     * {{{
+     *   def foo(a: A)(b: a.B): a.type = {b; b}
+     *   // after uncurry
+     *   def foo(a: A, b: a/* NOT IN SCOPE! */.B): a.B = {b; b}
+     * }}}
+     *
+     * This violates the principle that each compiler phase should produce trees that
+     * can be retyped (see [[scala.tools.nsc.typechecker.TreeCheckers]]), and causes
+     * a practical problem in `erasure`: it is not able to correctly determine if
+     * such a signature overrides a corresponding signature in a parent. (SI-6443).
+     *
+     * This transformation erases the dependent method types by:
+     *   - Widening the formal parameter type to existentially abstract
+     *     over the prior parameters (using `packSymbols`)
+     *   - Inserting casts in the method body to cast to the original,
+     *     precise type.
+     *
+     * For the example above, this results in:
+     *
+     * {{{
+     *   def foo(a: A, b: a.B forSome { val a: A }): a.B = { val b$1 = b.asInstanceOf[a.B]; b$1; b$1 }
+     * }}}
+     */
+    private object dependentParamTypeErasure {
+      sealed abstract class ParamTransform {
+        def param: ValDef
+      }
+      final case class Identity(param: ValDef) extends ParamTransform
+      final case class Packed(param: ValDef, tempVal: ValDef) extends ParamTransform
+
+      def isDependent(dd: DefDef): Boolean =
+        enteringUncurry {
+          val methType = dd.symbol.info
+          methType.isDependentMethodType && mexists(methType.paramss)(_.info exists (_.isImmediatelyDependent))
+        }
+
+      /**
+       * @return (newVparamss, newRhs)
+       */
+      def erase(dd: DefDef): (List[List[ValDef]], Tree) = {
+        import dd.{ vparamss, rhs }
+        val vparamSyms = vparamss flatMap (_ map (_.symbol))
+
+        val paramTransforms: List[ParamTransform] =
+          vparamss.flatten.map { p =>
+            val declaredType = p.symbol.info
+            // existentially abstract over value parameters
+            val packedType = typer.packSymbols(vparamSyms, declaredType)
+            if (packedType =:= declaredType) Identity(p)
+            else {
+              // Change the type of the param symbol
+              p.symbol updateInfo packedType
+
+              // Create a new param tree
+              val newParam: ValDef = copyValDef(p)(tpt = TypeTree(packedType))
+
+              // Within the method body, we'll cast the parameter to the originally
+              // declared type and assign this to a synthetic val. Later, we'll patch
+              // the method body to refer to this, rather than the parameter.
+              val tempVal: ValDef = {
+                val tempValName = unit freshTermName (p.name + "$")
+                val newSym = dd.symbol.newTermSymbol(tempValName, p.pos, SYNTHETIC).setInfo(declaredType)
+                atPos(p.pos)(ValDef(newSym, gen.mkAttributedCast(Ident(p.symbol), declaredType)))
+              }
+              Packed(newParam, tempVal)
+            }
+          }
+
+        val allParams = paramTransforms map (_.param)
+        val (packedParams, tempVals) = paramTransforms.collect {
+          case Packed(param, tempVal) => (param, tempVal)
+        }.unzip
+
+        val rhs1 = localTyper.typedPos(rhs.pos) {
+          // Patch the method body to refer to the temp vals
+          val rhsSubstituted = rhs.substituteSymbols(packedParams map (_.symbol), tempVals map (_.symbol))
+          // The new method body: { val p$1 = p.asInstanceOf[<dependent type>]; ...; <rhsSubstituted> }
+          Block(tempVals, rhsSubstituted)
+        }
+
+        // update the type of the method after uncurry.
+        dd.symbol updateInfo {
+          val GenPolyType(tparams, tp) = dd.symbol.info
+          logResult("erased dependent param types for ${dd.symbol.info}") {
+            GenPolyType(tparams, MethodType(allParams map (_.symbol), tp.finalResultType))
+          }
+        }
+        (allParams :: Nil, rhs1)
+      }
+    }
+
 
     /* Analyzes repeated params if method is annotated as `varargs`.
      * If the repeated params exist, it saves them into the `repeatedParams` map,

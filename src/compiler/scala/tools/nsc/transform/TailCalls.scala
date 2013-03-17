@@ -31,7 +31,7 @@ abstract class TailCalls extends Transform {
   class Phase(prev: scala.tools.nsc.Phase) extends StdPhase(prev) {
     def apply(unit: global.CompilationUnit) {
       if (!(settings.debuginfo.value == "notailcalls")) {
-        newTransformer(unit).transformUnit(unit);
+        newTransformer(unit).transformUnit(unit)
       }
     }
   }
@@ -392,7 +392,7 @@ abstract class TailCalls extends Transform {
       finally maybeTail = saved
     }
 
-    def traverseNoTail(tree: Tree) = traverse(tree, false)
+    def traverseNoTail(tree: Tree) = traverse(tree, maybeTailNew = false)
     def traverseTreesNoTail(trees: List[Tree]) = trees foreach traverseNoTail
 
     override def traverse(tree: Tree) = tree match {

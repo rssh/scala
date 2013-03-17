@@ -626,7 +626,7 @@ trait Definitions extends api.StandardDefinitions {
         len <= MaxTupleArity && sym == TupleClass(len)
       case _ => false
     }
-    def isTupleType(tp: Type) = isTupleTypeDirect(tp.normalize)
+    def isTupleType(tp: Type) = isTupleTypeDirect(tp.dealiasWiden)
 
     lazy val ProductRootClass: ClassSymbol = requiredClass[scala.Product]
       def Product_productArity          = getMemberMethod(ProductRootClass, nme.productArity)
@@ -648,16 +648,17 @@ trait Definitions extends api.StandardDefinitions {
       case _                         => tp
     }
 
-    def unapplyUnwrap(tpe:Type) = tpe.finalResultType.normalize match {
-      case RefinedType(p :: _, _) => p.normalize
+    def unapplyUnwrap(tpe:Type) = tpe.finalResultType.dealiasWiden match {
+      case RefinedType(p :: _, _) => p.dealiasWiden
       case tp                     => tp
     }
 
-    def abstractFunctionForFunctionType(tp: Type) =
-      if (isFunctionType(tp)) abstractFunctionType(tp.typeArgs.init, tp.typeArgs.last)
-      else NoType
+    def abstractFunctionForFunctionType(tp: Type) = {
+      assert(isFunctionType(tp), tp)
+      abstractFunctionType(tp.typeArgs.init, tp.typeArgs.last)
+    }
 
-    def isFunctionType(tp: Type): Boolean = tp.normalize match {
+    def isFunctionType(tp: Type): Boolean = tp.dealiasWiden match {
       case TypeRef(_, sym, args) if args.nonEmpty =>
         val arity = args.length - 1   // -1 is the return type
         arity <= MaxFunctionArity && sym == FunctionClass(arity)
@@ -879,7 +880,7 @@ trait Definitions extends api.StandardDefinitions {
 
     lazy val BeanPropertyAttr           = requiredClass[scala.beans.BeanProperty]
     lazy val BooleanBeanPropertyAttr    = requiredClass[scala.beans.BooleanBeanProperty]
-    lazy val CompileTimeOnlyAttr        = getClassIfDefined("scala.reflect.macros.compileTimeOnly")
+    lazy val CompileTimeOnlyAttr        = getClassIfDefined("scala.reflect.internal.annotations.compileTimeOnly")
     lazy val DeprecatedAttr             = requiredClass[scala.deprecated]
     lazy val DeprecatedNameAttr         = requiredClass[scala.deprecatedName]
     lazy val DeprecatedInheritanceAttr  = requiredClass[scala.deprecatedInheritance]
@@ -1131,7 +1132,7 @@ trait Definitions extends api.StandardDefinitions {
     /** Is type's symbol a numeric value class? */
     def isNumericValueType(tp: Type): Boolean = tp match {
       case TypeRef(_, sym, _) => isNumericValueClass(sym)
-      case _ => false
+      case _                  => false
     }
 
     // todo: reconcile with javaSignature!!!
@@ -1146,7 +1147,7 @@ trait Definitions extends api.StandardDefinitions {
         else if (sym.isTopLevel) sym.javaClassName
         else flatNameString(sym.owner, separator) + nme.NAME_JOIN_STRING + sym.simpleName
       def signature1(etp: Type): String = {
-        if (etp.typeSymbol == ArrayClass) "[" + signature1(erasure(etp.normalize.typeArgs.head))
+        if (etp.typeSymbol == ArrayClass) "[" + signature1(erasure(etp.dealiasWiden.typeArgs.head))
         else if (isPrimitiveValueClass(etp.typeSymbol)) abbrvTag(etp.typeSymbol).toString()
         else "L" + flatNameString(etp.typeSymbol, '/') + ";"
       }

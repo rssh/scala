@@ -27,7 +27,7 @@ abstract class Mixin extends InfoTransform with ast.TreeDSL {
   private val treatedClassInfos = perRunCaches.newMap[Symbol, Type]() withDefaultValue NoType
 
   /** Map a lazy, mixedin field accessor to it's trait member accessor */
-  private val initializer = perRunCaches.newMap[Symbol, Symbol]
+  private val initializer = perRunCaches.newMap[Symbol, Symbol]()
 
 // --------- helper functions -----------------------------------------------
 
@@ -126,7 +126,7 @@ abstract class Mixin extends InfoTransform with ast.TreeDSL {
             " " + mixinClass + " " + base.info.baseClasses + "/" + bcs)
       while (!bcs.isEmpty && sym == NoSymbol) {
         if (settings.debug.value) {
-          val other = bcs.head.info.nonPrivateDecl(member.name);
+          val other = bcs.head.info.nonPrivateDecl(member.name)
           debuglog("rebindsuper " + bcs.head + " " + other + " " + other.tpe +
               " " + other.isDeferred)
         }
@@ -148,7 +148,7 @@ abstract class Mixin extends InfoTransform with ast.TreeDSL {
         sym =>
           isConcreteAccessor(sym) &&
           !sym.hasFlag(MIXEDIN) &&
-          matchesType(sym.tpe, member.tpe, true))
+          matchesType(sym.tpe, member.tpe, alwaysMatchSimple = true))
     }
     (    bcs.head != member.owner
       && (hasOverridingAccessor(bcs.head) || isOverriddenAccessor(member, bcs.tail))
@@ -242,7 +242,7 @@ abstract class Mixin extends InfoTransform with ast.TreeDSL {
           }
         }
       }
-      debuglog("new defs of " + clazz + " = " + clazz.info.decls);
+      debuglog("new defs of " + clazz + " = " + clazz.info.decls)
     }
   }
 
@@ -273,7 +273,7 @@ abstract class Mixin extends InfoTransform with ast.TreeDSL {
         val imember = member overriddenSymbol mixinInterface
         imember overridingSymbol clazz match {
           case NoSymbol =>
-            if (clazz.info.findMember(member.name, 0, lateDEFERRED, false).alternatives contains imember)
+            if (clazz.info.findMember(member.name, 0, lateDEFERRED, stableOnly = false).alternatives contains imember)
               cloneAndAddMixinMember(mixinInterface, imember).asInstanceOf[TermSymbol] setAlias member
           case _        =>
         }
@@ -821,8 +821,8 @@ abstract class Mixin extends InfoTransform with ast.TreeDSL {
        *  Private fields used only in this initializer are subsequently set to null.
        *
        *  @param clazz The class symbol
+       *  @param lzyVal The symbol of this lazy field
        *  @param init The tree which initializes the field ( f = <rhs> )
-       *  @param fieldSym The symbol of this lazy field
        *  @param offset The offset of this field in the flags bitmap
        *
        *  The result will be a tree of the form
@@ -855,7 +855,7 @@ abstract class Mixin extends InfoTransform with ast.TreeDSL {
         val bitmapSym = bitmapFor(clazz, offset, lzyVal)
         val kind      = bitmapKind(lzyVal)
         val mask      = maskForOffset(offset, lzyVal, kind)
-        def cond      = mkTest(clazz, mask, bitmapSym, true, kind)
+        def cond      = mkTest(clazz, mask, bitmapSym, equalToZero = true, kind)
         val nulls     = lazyValNullables(lzyVal).toList sortBy (_.id) map nullify
         def syncBody  = init ::: List(mkSetFlag(clazz, offset, lzyVal, kind), UNIT)
 
@@ -882,7 +882,7 @@ abstract class Mixin extends InfoTransform with ast.TreeDSL {
         val mask      = maskForOffset(offset, sym, kind)
         val msg       = s"Uninitialized field: ${unit.source}: ${pos.line}"
         val result    =
-          IF (mkTest(clazz, mask, bitmapSym, false, kind)) .
+          IF (mkTest(clazz, mask, bitmapSym, equalToZero = false, kind)) .
             THEN (retVal) .
             ELSE (Throw(NewFromConstructor(UninitializedFieldConstructor, LIT(msg))))
 

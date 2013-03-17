@@ -28,7 +28,7 @@ abstract class Duplicators extends Analyzer {
     if (oldThis ne newThis) {
       oldClassOwner = oldThis
       newClassOwner = newThis
-    } else resetClassOwners
+    } else resetClassOwners()
 
     envSubstitution = new SubstSkolemsTypeMap(env.keysIterator.toList, env.valuesIterator.toList)
     debuglog("retyped with env: " + env)
@@ -352,7 +352,7 @@ abstract class Duplicators extends Analyzer {
               cases
           }
 
-          super.typedPos(tree.pos, mode, pt)(Match(scrut, cases1))
+          super.typed(atPos(tree.pos)(Match(scrut, cases1)), mode, pt)
 
         case EmptyTree =>
           // no need to do anything, in particular, don't set the type to null, EmptyTree.tpe_= asserts

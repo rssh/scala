@@ -9,10 +9,8 @@ package runtime
  */
 class JavaUniverse extends internal.SymbolTable with ReflectSetup with runtime.SymbolTable { self =>
 
+  def inform(msg: String): Unit = log(msg)
   def picklerPhase = internal.SomePhase
-
-  def forInteractive = false
-  def forScaladoc = false
   lazy val settings = new Settings
   private val isLogging = sys.props contains "scala.debug.reflect"
 

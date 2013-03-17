@@ -119,11 +119,11 @@ abstract class ICodeCheckers {
       clasz = cls
 
       for (f1 <- cls.fields ; f2 <- cls.fields ; if f1 < f2)
-        if (isConfict(f1, f2, false))
+        if (isConfict(f1, f2, canOverload = false))
           icodeError("Repetitive field name: " + f1.symbol.fullName)
 
       for (m1 <- cls.methods ; m2 <- cls.methods ; if m1 < m2)
-        if (isConfict(m1, m2, true))
+        if (isConfict(m1, m2, canOverload = true))
           icodeError("Repetitive method: " + m1.symbol.fullName)
 
       clasz.methods foreach check
@@ -208,7 +208,7 @@ abstract class ICodeCheckers {
               if (s1.length != s2.length) {
                 if (allUnits(s1) && allUnits(s2))
                   workaround("Ignoring mismatched boxed units")
-                else if (isHandlerBlock)
+                else if (isHandlerBlock())
                   workaround("Ignoring mismatched stacks entering exception handler")
                 else
                   throw new CheckerException(incompatibleString)
@@ -233,8 +233,8 @@ abstract class ICodeCheckers {
       }
 
       if (preds.nonEmpty) {
-        in(bl) = (preds map out.apply) reduceLeft meet2;
-        log("Input changed for block: " + bl +" to: " + in(bl));
+        in(bl) = (preds map out.apply) reduceLeft meet2
+        log("Input changed for block: " + bl +" to: " + in(bl))
       }
     }
 
@@ -321,14 +321,14 @@ abstract class ICodeCheckers {
       def popStackN(num: Int, instrFn: () => String = defaultInstrPrinter) = {
         List.range(0, num) map { _ =>
           val res = _popStack
-          printStackString(false, res, instrFn())
+          printStackString(isPush = false, res, instrFn())
           res
         }
       }
       def pushStackN(xs: Seq[TypeKind], instrFn: () => String) = {
         xs foreach { x =>
           stack push x
-          printStackString(true, x, instrFn())
+          printStackString(isPush = true, x, instrFn())
         }
       }
 
@@ -351,7 +351,7 @@ abstract class ICodeCheckers {
       def typeError(k1: TypeKind, k2: TypeKind) {
         icodeError("\n  expected: " + k1 + "\n     found: " + k2)
       }
-      def isSubtype(k1: TypeKind, k2: TypeKind) = (k1 <:< k2) || {
+      def isSubtype(k1: TypeKind, k2: TypeKind) = (k1 isAssignabledTo k2) || {
         import platform.isMaybeBoxed
 
         (k1, k2) match {
@@ -380,9 +380,9 @@ abstract class ICodeCheckers {
         def checkField(obj: TypeKind, field: Symbol): Unit = obj match {
           case REFERENCE(sym) =>
             if (sym.info.member(field.name) == NoSymbol)
-              icodeError(" " + field + " is not defined in class " + clasz);
+              icodeError(" " + field + " is not defined in class " + clasz)
           case _ =>
-            icodeError(" expected reference type, but " + obj + " found");
+            icodeError(" expected reference type, but " + obj + " found")
         }
 
         /** Checks that tpe is a subtype of one of the allowed types */
@@ -419,11 +419,11 @@ abstract class ICodeCheckers {
           receiver match {
             case REFERENCE(sym) =>
               checkBool(sym.info.member(method.name) != NoSymbol,
-                        "Method " + method + " does not exist in " + sym.fullName);
+                        "Method " + method + " does not exist in " + sym.fullName)
               if (method.isPrivate)
                 checkBool(method.owner == clasz.symbol,
                           "Cannot call private method of " + method.owner.fullName
-                          + " from " + clasz.symbol.fullName);
+                          + " from " + clasz.symbol.fullName)
               else if (method.isProtected) {
                 val isProtectedOK = (
                   (clasz.symbol isSubClass method.owner) ||
@@ -432,7 +432,7 @@ abstract class ICodeCheckers {
 
                 checkBool(isProtectedOK,
                           "Cannot call protected method of " + method.owner.fullName
-                          + " from " + clasz.symbol.fullName);
+                          + " from " + clasz.symbol.fullName)
               }
 
             case ARRAY(_) =>
@@ -465,7 +465,7 @@ abstract class ICodeCheckers {
                 pushStack(elem)
               case (a, b) =>
                 icodeError(" expected an INT and an array reference, but " +
-                    a + ", " + b + " found");
+                    a + ", " + b + " found")
             }
 
          case LOAD_LOCAL(local) =>
@@ -483,10 +483,10 @@ abstract class ICodeCheckers {
 
          case LOAD_MODULE(module) =>
            checkBool((module.isModule || module.isModuleClass),
-                     "Expected module: " + module + " flags: " + module.flagString);
-           pushStack(toTypeKind(module.tpe));
+                     "Expected module: " + module + " flags: " + module.flagString)
+           pushStack(toTypeKind(module.tpe))
 
-         case STORE_THIS(kind) =>
+          case STORE_THIS(kind) =>
            val actualType = popStack
            if (actualType.isReferenceType) subtypeTest(actualType, kind)
            else icodeError("Expected this reference but found: " + actualType)
@@ -498,7 +498,7 @@ abstract class ICodeCheckers {
                subtypeTest(k, elem)
              case (a, b, c) =>
                 icodeError(" expected and array reference, and int and " + kind +
-                      " but " + a + ", " + b + ", " + c + " found");
+                      " but " + a + ", " + b + ", " + c + " found")
            }
 
          case STORE_LOCAL(local) =>
@@ -594,7 +594,7 @@ abstract class ICodeCheckers {
              case x if style.hasInstance  => x + 1
              case x                       => x
            }
-           if (style == Static(true))
+           if (style == Static(onInstance = true))
              checkBool(method.isPrivate || method.isConstructor, "Static call to non-private method.")
 
           checkStack(paramCount)
@@ -653,7 +653,7 @@ abstract class ICodeCheckers {
           case RETURN(kind) =>
             val top = popStack
             if (kind.isValueType) checkType(top, kind)
-            else checkBool(!top.isValueType, "" + kind + " is a reference type, but " + top + " is not");
+            else checkBool(!top.isValueType, "" + kind + " is a reference type, but " + top + " is not")
 
           case THROW(clasz) =>
             checkType(popStack, toTypeKind(clasz.tpe))

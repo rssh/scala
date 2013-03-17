@@ -68,7 +68,7 @@ class CompileSocket extends CompileOutputCommon {
   /** A temporary directory to use */
   val tmpDir = {
     val udir  = Option(Properties.userName) getOrElse "shared"
-    val f     = (Path(Properties.tmpDir) / "scala-devel" / udir).createDirectory()
+    val f     = (Path(Properties.tmpDir) / ("scala-devel" + udir)).createDirectory()
 
     if (f.isDirectory && f.canWrite) {
       info("[Temp directory: " + f + "]")
@@ -186,7 +186,7 @@ class CompileSocket extends CompileOutputCommon {
     catch { case _: NumberFormatException => None }
 
   def getSocket(serverAdr: String): Socket = (
-    for ((name, portStr) <- splitWhere(serverAdr, _ == ':', true) ; port <- parseInt(portStr)) yield
+    for ((name, portStr) <- splitWhere(serverAdr, _ == ':', doDropIndex = true) ; port <- parseInt(portStr)) yield
       getSocket(name, port)
   ) getOrElse fatal("Malformed server address: %s; exiting" format serverAdr)
 
