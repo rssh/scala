@@ -13,4 +13,4 @@ package scala.annotation
  *
  * @since 2.11
  */
-final class exported extends annotation.StaticAnnotation
+final class exported(inherited:Boolean = false) extends annotation.StaticAnnotation
