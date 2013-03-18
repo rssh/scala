@@ -621,6 +621,16 @@ trait Types
             result = r
             nrtrack = t
          }
+         if (result == NoSymbol) {
+            // search in parents.
+            var cp = parents
+            while( result == NoSymbol && cp != Nil ) {
+               val (r,t) = cp.head.findExportedImport(name, nrtrack)
+               result = r
+               nrtrack = t
+               cp = cp.tail
+            }
+         }
         }
       }
       (result, nrtrack)
