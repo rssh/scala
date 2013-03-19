@@ -347,12 +347,14 @@ trait Definitions extends api.StandardDefinitions {
     // Those modules and their module classes
     lazy val UnqualifiedOwners  = UnqualifiedModules.toSet ++ UnqualifiedModules.map(_.moduleClass)
 
-    lazy val PredefModule      = requiredModule[scala.Predef.type]
-      def Predef_classOf             = getMemberMethod(PredefModule, nme.classOf)
-      def Predef_wrapRefArray        = getMemberMethod(PredefModule, nme.wrapRefArray)
-      def Predef_wrapArray(tp: Type) = getMemberMethod(PredefModule, wrapArrayMethodName(tp))
-      def Predef_???                 = getMemberMethod(PredefModule, nme.???)
-      def Predef_implicitly          = getMemberMethod(PredefModule, nme.implicitly)
+    lazy val PredefModule                = requiredModule[scala.Predef.type]
+      def Predef_classOf                 = getMemberMethod(PredefModule, nme.classOf)
+      def Predef_wrapRefArray            = getMemberMethod(PredefModule, nme.wrapRefArray)
+      def Predef_wrapArray(tp: Type)     = getMemberMethod(PredefModule, wrapArrayMethodName(tp))
+      def Predef_???                     = getMemberMethod(PredefModule, nme.???)
+      def Predef_implicitly              = getMemberMethod(PredefModule, nme.implicitly)
+      def Predef_MacroCompiler           = getMemberClass(PredefModule, tpnme.MacroCompiler)
+      def Predef_defaultResolveMacroImpl = getMemberMethod(Predef_MacroCompiler, nme.resolveMacroImpl)
 
     /** Is `sym` a member of Predef with the given name?
      *  Note: DON't replace this by sym == Predef_conforms/etc, as Predef_conforms is a `def`
@@ -391,6 +393,7 @@ trait Definitions extends api.StandardDefinitions {
 
     lazy val TypeConstraintClass   = requiredClass[scala.annotation.TypeConstraint]
     lazy val SingletonClass        = enterNewClass(ScalaPackageClass, tpnme.Singleton, anyparam, ABSTRACT | TRAIT | FINAL)
+    lazy val UntypedClass          = enterNewClass(ScalaPackageClass, tpnme.UNTYPED_CLASS_NAME, anyparam, ABSTRACT | TRAIT | FINAL)
     lazy val SerializableClass     = requiredClass[scala.Serializable]
     lazy val JavaSerializableClass = requiredClass[java.io.Serializable] modifyInfo fixupAsAnyTrait
     lazy val ComparableClass       = requiredClass[java.lang.Comparable[_]] modifyInfo fixupAsAnyTrait
@@ -411,6 +414,8 @@ trait Definitions extends api.StandardDefinitions {
     def isRepeated(param: Symbol)          = isRepeatedParamType(param.tpe_*)
     def isByName(param: Symbol)            = isByNameParamType(param.tpe_*)
     def isCastSymbol(sym: Symbol)          = sym == Any_asInstanceOf || sym == Object_asInstanceOf
+    def isUntypedType(tp: Type)            = tp.typeSymbol == UntypedClass || (tp.typeSymbol == RepeatedParamClass && tp.typeArgs.head == UntypedClass.tpe)
+    def isUntypedMacro(sym: Symbol): Boolean = if (sym.isMacroType) isUntypedMacro(sym.typeMacro) else sym.paramss.flatten.exists(p => isUntypedType(p.info))
 
     def isJavaVarArgsMethod(m: Symbol)      = m.isMethod && isJavaVarArgs(m.info.params)
     def isJavaVarArgs(params: Seq[Symbol])  = params.nonEmpty && isJavaRepeatedParamType(params.last.tpe)
@@ -446,6 +451,7 @@ trait Definitions extends api.StandardDefinitions {
     // collections classes
     lazy val ConsClass          = requiredClass[scala.collection.immutable.::[_]]
     lazy val IteratorClass      = requiredClass[scala.collection.Iterator[_]]
+    lazy val IterableClass      = requiredClass[scala.collection.Iterable[_]]
     lazy val ListClass          = requiredClass[scala.collection.immutable.List[_]]
     lazy val SeqClass           = requiredClass[scala.collection.Seq[_]]
     lazy val StringBuilderClass = requiredClass[scala.collection.mutable.StringBuilder]
@@ -489,10 +495,24 @@ trait Definitions extends api.StandardDefinitions {
     lazy val OptManifestClass      = requiredClass[scala.reflect.OptManifest[_]]
     lazy val NoManifest            = requiredModule[scala.reflect.NoManifest.type]
 
+    lazy val TreesClass            = getClassIfDefined("scala.reflect.api.Trees") // defined in scala-reflect.jar, so we need to be careful
+    lazy val TreesTreeType         = if (TreesClass != NoSymbol) getTypeMember(TreesClass, tpnme.Tree) else NoSymbol
+    object TreeType {
+      def unapply(tpe: Type): Boolean = unapply(tpe.typeSymbol)
+      def unapply(sym: Symbol): Boolean = sym.overrideChain contains TreesTreeType
+    }
+
     lazy val ExprsClass            = getClassIfDefined("scala.reflect.api.Exprs") // defined in scala-reflect.jar, so we need to be careful
     lazy val ExprClass             = if (ExprsClass != NoSymbol) getMemberClass(ExprsClass, tpnme.Expr) else NoSymbol
          def ExprSplice            = if (ExprsClass != NoSymbol) getMemberMethod(ExprClass, nme.splice) else NoSymbol
          def ExprValue             = if (ExprsClass != NoSymbol) getMemberMethod(ExprClass, nme.value) else NoSymbol
+    object ExprClassOf {
+      def unapply(tpe: Type): Option[Type] = tpe.dealias match {
+        case ExistentialType(_, underlying) => unapply(underlying)
+        case TypeRef(_, ExprClass, t :: Nil) => Some(t)
+        case _ => None
+      }
+    }
 
     lazy val ClassTagModule         = requiredModule[scala.reflect.ClassTag[_]]
     lazy val ClassTagClass          = requiredClass[scala.reflect.ClassTag[_]]
@@ -513,15 +533,30 @@ trait Definitions extends api.StandardDefinitions {
 
     lazy val TypeCreatorClass      = getClassIfDefined("scala.reflect.api.TypeCreator") // defined in scala-reflect.jar, so we need to be careful
     lazy val TreeCreatorClass      = getClassIfDefined("scala.reflect.api.TreeCreator") // defined in scala-reflect.jar, so we need to be careful
+    lazy val LiftableClass         = getClassIfDefined("scala.reflect.api.Liftable")    // defined in scala-reflect.jar, so we need to be careful
 
+    lazy val MacroClass                          = getClassIfDefined("scala.reflect.macros.Macro") // defined in scala-reflect.jar, so we need to be careful
+    lazy val AnnotationMacroClass                = getClassIfDefined("scala.reflect.macros.AnnotationMacro") // defined in scala-reflect.jar, so we need to be careful
     lazy val MacroContextClass                   = getClassIfDefined("scala.reflect.macros.Context") // defined in scala-reflect.jar, so we need to be careful
          def MacroContextPrefix                  = if (MacroContextClass != NoSymbol) getMemberMethod(MacroContextClass, nme.prefix) else NoSymbol
          def MacroContextPrefixType              = if (MacroContextClass != NoSymbol) getTypeMember(MacroContextClass, tpnme.PrefixType) else NoSymbol
          def MacroContextUniverse                = if (MacroContextClass != NoSymbol) getMemberMethod(MacroContextClass, nme.universe) else NoSymbol
+         def MacroContextExprClass               = if (MacroContextClass != NoSymbol) getTypeMember(MacroContextClass, tpnme.Expr) else NoSymbol
+         def MacroContextWeakTypeTagClass        = if (MacroContextClass != NoSymbol) getTypeMember(MacroContextClass, tpnme.WeakTypeTag) else NoSymbol
+         def MacroContextTreeType                = if (MacroContextClass != NoSymbol) getTypeMember(MacroContextClass, tpnme.Tree) else NoSymbol
+    lazy val AnnotationMacroContextClass         = getClassIfDefined("scala.reflect.macros.AnnotationContext") // defined in scala-reflect.jar, so we need to be careful
     lazy val MacroImplAnnotation                 = requiredClass[scala.reflect.macros.internal.macroImpl]
 
     lazy val StringContextClass                  = requiredClass[scala.StringContext]
          def StringContext_f                     = getMemberMethod(StringContextClass, nme.f)
+
+    lazy val QuasiquoteClass            = if (ApiUniverseClass != NoSymbol) getMember(ApiUniverseClass, TypeName("Quasiquote")) else NoSymbol
+    lazy val QuasiquoteClass_q          = if (QuasiquoteClass != NoSymbol) getMember(QuasiquoteClass, TermName("q")) else NoSymbol
+    lazy val QuasiquoteClass_q_apply    = if (QuasiquoteClass_q != NoSymbol) getMember(QuasiquoteClass_q, TermName("apply")) else NoSymbol
+    lazy val QuasiquoteClass_q_unapply  = if (QuasiquoteClass_q != NoSymbol) getMember(QuasiquoteClass_q, TermName("unapply")) else NoSymbol
+    lazy val QuasiquoteClass_tq         = if (QuasiquoteClass != NoSymbol) getMember(QuasiquoteClass, TermName("tq")) else NoSymbol
+    lazy val QuasiquoteClass_tq_apply   = if (QuasiquoteClass_tq != NoSymbol) getMember(QuasiquoteClass_tq, TermName("apply")) else NoSymbol
+    lazy val QuasiquoteClass_tq_unapply = if (QuasiquoteClass_tq != NoSymbol) getMember(QuasiquoteClass_tq, TermName("unapply")) else NoSymbol
 
     lazy val ScalaSignatureAnnotation = requiredClass[scala.reflect.ScalaSignature]
     lazy val ScalaLongSignatureAnnotation = requiredClass[scala.reflect.ScalaLongSignature]
@@ -627,6 +662,12 @@ trait Definitions extends api.StandardDefinitions {
       case _ => false
     }
     def isTupleType(tp: Type) = isTupleTypeDirect(tp.dealiasWiden)
+
+    def isMacroBundleType(tp: Type) = {
+      val isNonTrivial = tp != ErrorType && tp != NothingTpe && tp != NullTpe
+      val isMacroCompatible = MacroClass != NoSymbol && tp <:< MacroClass.tpe
+      isNonTrivial && isMacroCompatible
+    }
 
     lazy val ProductRootClass: ClassSymbol = requiredClass[scala.Product]
       def Product_productArity          = getMemberMethod(ProductRootClass, nme.productArity)
@@ -865,6 +906,7 @@ trait Definitions extends api.StandardDefinitions {
     lazy val AnnotationClass            = requiredClass[scala.annotation.Annotation]
     lazy val ClassfileAnnotationClass   = requiredClass[scala.annotation.ClassfileAnnotation]
     lazy val StaticAnnotationClass      = requiredClass[scala.annotation.StaticAnnotation]
+    lazy val MacroAnnotationClass       = requiredClass[scala.annotation.MacroAnnotation]
 
     // Annotations
     lazy val BridgeClass                = requiredClass[scala.annotation.bridge]
@@ -885,6 +927,7 @@ trait Definitions extends api.StandardDefinitions {
     lazy val DeprecatedNameAttr         = requiredClass[scala.deprecatedName]
     lazy val DeprecatedInheritanceAttr  = requiredClass[scala.deprecatedInheritance]
     lazy val DeprecatedOverridingAttr   = requiredClass[scala.deprecatedOverriding]
+    lazy val InheritedAttr              = requiredClass[java.lang.annotation.Inherited]
     lazy val NativeAttr                 = requiredClass[scala.native]
     lazy val RemoteAttr                 = requiredClass[scala.remote]
     lazy val ScalaInlineClass           = requiredClass[scala.inline]
@@ -923,7 +966,7 @@ trait Definitions extends api.StandardDefinitions {
 
     def isMetaAnnotation(sym: Symbol): Boolean = metaAnnotations(sym) || (
       // Trying to allow for deprecated locations
-      sym.isAliasType && isMetaAnnotation(sym.info.typeSymbol)
+      sym.isAliasTypeNoKidding && isMetaAnnotation(sym.info.typeSymbol)
     )
     lazy val metaAnnotations: Set[Symbol] = getPackage("scala.annotation.meta").info.members filter (_ isSubClass StaticAnnotationClass) toSet
 
@@ -1074,7 +1117,8 @@ trait Definitions extends api.StandardDefinitions {
       AnyValClass,
       NullClass,
       NothingClass,
-      SingletonClass
+      SingletonClass,
+      UntypedClass
     )
     /** Lists core methods that don't have underlying bytecode, but are synthesized on-the-fly in every reflection universe */
     lazy val syntheticCoreMethods = List(

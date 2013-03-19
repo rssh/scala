@@ -17,7 +17,7 @@ abstract class TreeInfo {
   val global: SymbolTable
 
   import global._
-  import definitions.{ isVarArgsList, isCastSymbol, ThrowableClass, TupleClass, MacroContextClass, MacroContextPrefixType }
+  import definitions.{ isVarArgsList, isCastSymbol, ThrowableClass, TupleClass }
 
   /* Does not seem to be used. Not sure what it does anyway.
   def isOwnerDefinition(tree: Tree): Boolean = tree match {
@@ -383,6 +383,19 @@ abstract class TreeInfo {
     case t                          => t
   }
 
+  /** Is tpt a untyped parameter or return type?
+   *
+   *  The only two possible shapes untyped types might appear in are:
+   *    1) <untyped> as in `def foo(x: _): _ = macro impl`
+   *    2) <untyped>* as in `def foo(x: _*) = macro impl`
+   */
+  def isUntypedType(tpt: Tree): Boolean = tpt match {
+    case TypeTree()                          => !tpt.isEmpty && definitions.isUntypedType(tpt.tpe)
+    case AppliedTypeTree(_, tpt :: Nil)      => isUntypedType(tpt)
+    case Select(_, tpnme.UNTYPED_CLASS_NAME) => true
+    case _                                   => false
+  }
+
   /** Is name a left-associative operator? */
   def isLeftAssoc(operator: Name) = operator.nonEmpty && (operator.endChar != ':')
 
@@ -543,11 +556,12 @@ abstract class TreeInfo {
    *    1) naked core: Ident(_) or Select(_, _) or basically anything else
    *    2) naked core with targs: TypeApply(core, targs) or AppliedTypeTree(core, targs)
    *    3) apply or several applies wrapping a core: Apply(core, _), or Apply(Apply(core, _), _), etc
+   *       same thing for DependentTypeTree(core, _), or DependentTypeTree(DependentTypeTree(core, _), _), etc
    *
    *  This class provides different ways to decompose applications and simplifies their analysis.
    *
    *  ***Examples***
-   *  (TypeApply in the examples can be replaced with AppliedTypeTree)
+   *  (Apply and TypeApply in the examples can be replaced with AppliedTypeTree and DependentTypeTree)
    *
    *    Ident(foo):
    *      * callee = Ident(foo)
@@ -585,8 +599,9 @@ abstract class TreeInfo {
      */
     def callee: Tree = {
       def loop(tree: Tree): Tree = tree match {
-        case Apply(fn, _) => loop(fn)
-        case tree         => tree
+        case Apply(fn, _)             => loop(fn)
+        case DependentTypeTree(fn, _) => loop(fn)
+        case tree                     => tree
       }
       loop(tree)
     }
@@ -614,8 +629,9 @@ abstract class TreeInfo {
      */
     def argss: List[List[Tree]] = {
       def loop(tree: Tree): List[List[Tree]] = tree match {
-        case Apply(fn, args) => loop(fn) :+ args
-        case _               => Nil
+        case Apply(fn, args)             => loop(fn) :+ args
+        case DependentTypeTree(fn, args) => loop(fn) :+ args
+        case _                           => Nil
       }
       loop(tree)
     }
@@ -625,10 +641,11 @@ abstract class TreeInfo {
      */
     def applyDepth: Int = {
       def loop(tree: Tree): Int = tree match {
-        case Apply(fn, _)           => 1 + loop(fn)
-        case TypeApply(fn, _)       => loop(fn)
-        case AppliedTypeTree(fn, _) => loop(fn)
-        case _                      => 0
+        case Apply(fn, _)             => 1 + loop(fn)
+        case TypeApply(fn, _)         => loop(fn)
+        case DependentTypeTree(fn, _) => 1 + loop(fn)
+        case AppliedTypeTree(fn, _)   => loop(fn)
+        case _                        => 0
       }
       loop(tree)
     }
@@ -757,8 +774,17 @@ abstract class TreeInfo {
     }
 
     def unapply(tree: Tree) = refPart(tree) match {
-      case ref: RefTree => Some((ref.qualifier.symbol, ref.symbol, dissectApplied(tree).targs))
-      case _            => None
+      case ref: RefTree => {
+        val isBundle = definitions.isMacroBundleType(ref.qualifier.tpe)
+        val owner =
+          if (isBundle) ref.qualifier.tpe.typeSymbol
+          else {
+            val sym = ref.qualifier.symbol
+            if (sym.isModule) sym.moduleClass else sym
+          }
+        Some((isBundle, owner, ref.symbol, dissectApplied(tree).targs))
+      }
+      case _  => None
     }
   }
 
@@ -768,6 +794,18 @@ abstract class TreeInfo {
       case tree: RefTree => true
       case _ => false
     })
+
+  def repackApplyAsNew(tree: Tree): Tree = {
+    def dissectApply(tree: Tree): (Tree, List[List[Tree]]) = tree match {
+      case Apply(fn, args) =>
+        val (core, argss) = dissectApply(fn)
+        (core, argss :+ args)
+      case _ =>
+        (tree, Nil)
+    }
+    val (core, argss) = dissectApply(tree)
+    New(core, argss)
+  }
 
   def isMacroApplication(tree: Tree): Boolean =
     !tree.isDef && tree.symbol != null && tree.symbol.isMacro && !tree.symbol.isErroneous
@@ -779,4 +817,7 @@ abstract class TreeInfo {
 
   def isNonTrivialMacroApplication(tree: Tree): Boolean =
     isMacroApplication(tree) && dissectApplied(tree).core != tree
+
+  def isUntypedMacroApplication(tree: Tree): Boolean =
+    isMacroApplication(tree) && definitions.isUntypedMacro(tree.symbol)
 }

@@ -211,6 +211,10 @@ trait Implicits {
     override def toString = name + ": " + tpe
   }
 
+  /** A class which is used to track pending implicits to prevent infinite implicit searches.
+   */
+  case class OpenImplicit(info: ImplicitInfo, pt: Type, tree: Tree)
+
   /** A sentinel indicating no implicit was found */
   val NoImplicitInfo = new ImplicitInfo(null, NoType, NoSymbol) {
     // equals used to be implemented in ImplicitInfo with an `if(this eq NoImplicitInfo)`
@@ -394,13 +398,25 @@ trait Implicits {
      *  @pre           `info.tpe` does not contain an error
      */
     private def typedImplicit(info: ImplicitInfo, ptChecked: Boolean, isLocal: Boolean): SearchResult = {
-      (context.openImplicits find { case (tp, tree1) => tree1.symbol == tree.symbol && dominates(pt, tp)}) match {
+      // SI-7167 let implicit macros decide what amounts for a divergent implicit search
+      // imagine a macro writer which wants to synthesize a complex implicit Complex[T] by making recursive calls to Complex[U] for its parts
+      // e.g. we have `class Foo(val bar: Bar)` and `class Bar(val x: Int)`
+      // then it's quite reasonable for the macro writer to synthesize Complex[Foo] by calling `inferImplicitValue(typeOf[Complex[Bar])`
+      // however if we didn't insert the `info.sym.isMacro` check here, then under some circumstances
+      // (e.g. as described here http://groups.google.com/group/scala-internals/browse_thread/thread/545462b377b0ac0a)
+      // `dominates` might decide that `Bar` dominates `Foo` and therefore a recursive implicit search should be prohibited
+      // now when we yield control of divergent expansions to the macro writer, what happens next?
+      // in the worst case, if the macro writer is careless, we'll get a StackOverflowException from repeated macro calls
+      // otherwise, the macro writer could check `c.openMacros` and `c.openImplicits` and do `c.abort` when expansions are deemed to be divergent
+      // upon receiving `c.abort` the typechecker will decide that the corresponding implicit search has failed
+      // which will fail the entire stack of implicit searches, producing a nice error message provided by the programmer
+      (context.openImplicits find { case OpenImplicit(info, tp, tree1) => !info.sym.isMacro && tree1.symbol == tree.symbol && dominates(pt, tp)}) match {
          case Some(pending) =>
            //println("Pending implicit "+pending+" dominates "+pt+"/"+undetParams) //@MDEBUG
            throw DivergentImplicit
          case None =>
            try {
-             context.openImplicits = (pt, tree) :: context.openImplicits
+             context.openImplicits = OpenImplicit(info, pt, tree) :: context.openImplicits
              // println("  "*context.openImplicits.length+"typed implicit "+info+" for "+pt) //@MDEBUG
              typedImplicit0(info, ptChecked, isLocal)
            } catch {
@@ -474,7 +490,7 @@ trait Implicits {
             loop(restpe, pt)
           else pt match {
             case tr @ TypeRef(pre, sym, args) =>
-              if (sym.isAliasType) loop(tp, pt.dealias)
+              if (sym.isAliasTypeNoKidding) loop(tp, pt.dealias)
               else if (sym.isAbstractType) loop(tp, pt.bounds.lo)
               else {
                 val len = args.length - 1
@@ -1000,7 +1016,7 @@ trait Implicits {
                   getClassParts(tp)
                 args foreach (getParts(_))
               }
-            } else if (sym.isAliasType) {
+            } else if (sym.isAliasTypeNoKidding) {
               getParts(tp.normalize) // SI-7180 Normalize needed to expand HK type refs
             } else if (sym.isAbstractType) {
               getParts(tp.bounds.hi)
@@ -1264,7 +1280,7 @@ trait Implicits {
             // hence we don't do `pt.dealias` as we did before, but rather do `pt.betaReduce`
             // unlike `dealias`, `betaReduce` performs at most one step of dealiasing
             // while dealias pops all aliases in a single invocation
-            case sym if sym.isAliasType => materializeImplicit(pt.betaReduce)
+            case sym if sym.isAliasTypeNoKidding => materializeImplicit(pt.betaReduce)
             case _ => SearchFailure
           }
         case _ =>
@@ -1354,7 +1370,7 @@ trait Implicits {
   object ImplicitNotFoundMsg {
     def unapply(sym: Symbol): Option[(Message)] = sym.implicitNotFoundMsg match {
       case Some(m) => Some(new Message(sym, m))
-      case None if sym.isAliasType =>
+      case None if sym.isAliasTypeNoKidding =>
         // perform exactly one step of dealiasing
         // this is necessary because ClassManifests are now aliased to ClassTags
         // but we don't want to intimidate users by showing unrelated error messages

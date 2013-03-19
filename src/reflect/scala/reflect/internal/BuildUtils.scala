@@ -51,6 +51,12 @@ trait BuildUtils { self: SymbolTable =>
 
     def Ident(sym: Symbol): Ident = self.Ident(sym)
 
+    def Block(stats: List[Tree]): Block = stats match {
+      case Nil => self.Block(Nil, Literal(Constant(())))
+      case elem :: Nil => self.Block(Nil, elem)
+      case elems => self.Block(elems.init, elems.last)
+    }
+
     def TypeTree(tp: Type): TypeTree = self.TypeTree(tp)
 
     def thisPrefix(sym: Symbol): Type = sym.thisPrefix
@@ -58,6 +64,36 @@ trait BuildUtils { self: SymbolTable =>
     def setType[T <: Tree](tree: T, tpe: Type): T = { tree.setType(tpe); tree }
 
     def setSymbol[T <: Tree](tree: T, sym: Symbol): T = { tree.setSymbol(sym); tree }
+
+    object FlagsAsBits extends FlagsAsBitsExtractor {
+      def unapply(flags: Long): Option[Long] = Some(flags)
+    }
+
+    object EmptyValDefLike extends EmptyValDefExtractor {
+      def unapply(t: Tree): Boolean = t eq emptyValDef
+    }
+
+    object PendingSuperCallLike extends PendingSuperCallExtractor {
+      def unapply(t: Tree): Boolean = t eq pendingSuperCall
+    }
+
+    object Applied extends AppliedExtractor {
+      def unapply(tree: Tree): Option[(Tree, List[Tree], List[List[Tree]])] = tree match {
+        case treeInfo.Applied(fun, targs, argss) => Some((fun, targs, argss))
+        case _ => None
+      }
+    }
+
+    object Applied2 extends Applied2Extractor {
+      def unapply(tree: Tree): Option[(Tree, List[List[Tree]])] = tree match {
+        case treeInfo.Applied(fun, targs, argss) =>
+          if(targs.length > 0)
+            Some((TypeApply(fun, targs), argss))
+          else
+            Some((fun, argss))
+        case _ => None
+      }
+    }
   }
 
   val build: BuildApi = new BuildImpl

@@ -10,13 +10,14 @@ trait StdAttachments {
    *  At times we need to store this info, because macro expansion can be delayed until its targs are inferred.
    *  After a macro application has been successfully expanded, this attachment is destroyed.
    */
-  type UnaffiliatedMacroContext = scala.reflect.macros.runtime.Context
+  type UnaffiliatedMacroContext = scala.reflect.macros.contexts.Context
+  type UnaffiliatedAnnotationMacroContext = scala.reflect.macros.contexts.AnnotationContext
   type MacroContext = UnaffiliatedMacroContext { val universe: self.global.type }
   case class MacroRuntimeAttachment(delayed: Boolean, typerContext: Context, macroContext: Option[MacroContext])
 
   /** Scratchpad for the macro expander, which is used to store all intermediate data except the details about the runtime.
    */
-  case class MacroExpanderAttachment(original: Tree, desugared: Tree, role: MacroRole)
+  case class MacroExpanderAttachment(original: Tree, desugared: Tree, role: MacroRole, enclosingTemplate: Option[Template], annottee: Tree, companion: Tree)
 
   /** Loads underlying MacroExpanderAttachment from a macro expandee or returns a default value for that attachment.
    */
@@ -24,15 +25,15 @@ trait StdAttachments {
     tree.attachments.get[MacroExpanderAttachment] getOrElse {
       tree match {
         case Apply(fn, _) if tree.isInstanceOf[ApplyToImplicitArgs] => macroExpanderAttachment(fn)
-        case _ => MacroExpanderAttachment(tree, EmptyTree, APPLY_ROLE)
+        case _ => MacroExpanderAttachment(tree, EmptyTree, APPLY_ROLE, None, EmptyTree, EmptyTree)
       }
     }
 
   /** After macro expansion is completed, links the expandee and the expansion result
    *  by annotating them both with a `MacroExpansionAttachment`.
    */
-  def linkExpandeeAndDesugared(expandee: Tree, desugared: Tree, role: MacroRole): Unit = {
-    val metadata = MacroExpanderAttachment(expandee, desugared, role)
+  def linkExpandeeAndDesugared(expandee: Tree, desugared: Tree, role: MacroRole, template: Option[Template], annottee: Tree, companion: Tree): Unit = {
+    val metadata = MacroExpanderAttachment(expandee, desugared, role, template, annottee, companion)
     expandee updateAttachment metadata
     desugared updateAttachment metadata
   }
@@ -59,6 +60,16 @@ trait StdAttachments {
     expanded match {
       case expanded: Tree => expanded updateAttachment metadata
       case _ => // do nothing
+    }
+  }
+
+  /** Checks whether there is a Template resulting from a macro expansion and associated with the current tree.
+   *  Such templates indicate a type macro in parent role that has been expanded into a template.
+   */
+  object ExpandedIntoTemplate {
+    def unapply(tree: Tree): Option[Template] = tree.attachments.get[MacroExpansionAttachment] match {
+      case Some(MacroExpansionAttachment(_, template: Template)) => Some(template)
+      case _ => None
     }
   }
 
@@ -127,4 +138,54 @@ trait StdAttachments {
   /** Determines whether the given tree has an associated SuperArgsAttachment.
    */
   def hasSuperArgs(tree: Tree): Boolean = superArgs(tree).nonEmpty
+
+  /** @see markMacroImplRef
+   */
+  case object MacroImplRefAttachment
+
+  /** Marks the tree as a macro impl reference, which is a naked reference to a method.
+   *
+   *  This is necessary for typechecking macro impl references (see `DefaultMacroCompiler.defaultResolveMacroImpl`),
+   *  because otherwise typing a naked reference will result in the "follow this method with `_' if you want to
+   *  treat it as a partially applied function" errors.
+   *
+   *  This mark suppresses adapt except for when the annottee is a macro application.
+   */
+  def markMacroImplRef(tree: Tree): Tree = tree.updateAttachment(MacroImplRefAttachment)
+
+  /** Unmarks the tree as a macro impl reference (see `markMacroImplRef` for more information).
+   *
+   *  This is necessary when a tree that was previously deemed to be a macro impl reference,
+   *  typechecks to be a macro application. Then we need to unmark it, expand it and try to treat
+   *  its expansion as a macro impl reference.
+   */
+  def unmarkMacroImplRef(tree: Tree): Tree = tree.removeAttachment[MacroImplRefAttachment.type]
+
+  /** Determines whether a tree should or should not be adapted,
+   *  because someone has put MacroImplRefAttachment on it.
+   */
+  def isMacroImplRef(tree: Tree): Boolean = tree.attachments.get[MacroImplRefAttachment.type].isDefined
+
+  /** Captures the tree which was used to produce the attachee.
+   */
+  case class OriginalAttachment(original: Tree)
+
+  def setOriginal(tree: Tree, original: Tree): Tree = tree match {
+    case tt @ TypeTree() => tt setOriginal original
+    case tree => tree updateAttachment OriginalAttachment(original)
+  }
+
+  def original(tree: Tree): Tree = tree match {
+    case tt @ TypeTree() => tt.original
+    case tree => tree.attachments.get[OriginalAttachment].map(_.original).getOrElse(null)
+  }
+
+  /** Stores the macro implementation attached to the underlying macro definition symbol.
+   *  Since attachments aren't pickled, this has a scope of a single compilation run.
+   */
+  case class MacroImplAttachment(macroImpl: Symbol)
+
+  def attachMacroImpl(macroDef: Symbol, macroImpl: Symbol) = macroDef updateAttachment MacroImplAttachment(macroImpl)
+
+  def attachedMacroImpl(macroDef: Symbol) = macroDef.attachments.get[MacroImplAttachment].map(_.macroImpl).getOrElse(NoSymbol)
 }

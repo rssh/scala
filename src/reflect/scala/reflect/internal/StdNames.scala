@@ -7,6 +7,7 @@ package scala.reflect
 package internal
 
 import java.security.MessageDigest
+import java.util.UUID.randomUUID
 import Chars.isOperatorPart
 import scala.annotation.switch
 import scala.language.implicitConversions
@@ -204,16 +205,19 @@ trait StdNames {
     final val LOCAL_CHILD: NameType                    = "<local child>"
     final val REFINE_CLASS_NAME: NameType              = "<refinement>"
     final val REPEATED_PARAM_CLASS_NAME: NameType      = "<repeated>"
+    final val UNTYPED_CLASS_NAME: NameType             = "<untyped>"
     final val WILDCARD_STAR: NameType                  = "_*"
     final val REIFY_TREECREATOR_PREFIX: NameType       = "$treecreator"
     final val REIFY_TYPECREATOR_PREFIX: NameType       = "$typecreator"
 
     final val Any: NameType             = "Any"
     final val AnyVal: NameType          = "AnyVal"
+    final val MacroCompiler: NameType   = "MacroCompiler"
     final val Mirror: NameType          = "Mirror"
     final val Nothing: NameType         = "Nothing"
     final val Null: NameType            = "Null"
     final val Object: NameType          = "Object"
+    final val Option: NameType          = "Option"
     final val PrefixType: NameType      = "PrefixType"
     final val Product: NameType         = "Product"
     final val Serializable: NameType    = "Serializable"
@@ -225,8 +229,14 @@ trait StdNames {
     final val ClassManifest: NameType       = "ClassManifest"
     final val Enum: NameType                = "Enum"
     final val Group: NameType               = "Group"
+    final val Name: NameType                = "Name"
     final val Tree: NameType                = "Tree"
+    final val TermName: NameType            = "TermName"
     final val Type : NameType               = "Type"
+    final val TypeName: NameType            = "TypeName"
+    final val TypeDef: NameType             = "TypeDef"
+    final val Tuple: NameType               = "Tuple"
+    final val Universe: NameType            = "Universe"
 
     // Annotation simple names, used in Namer
     final val BeanPropertyAnnot: NameType = "BeanProperty"
@@ -288,6 +298,9 @@ trait StdNames {
     val LAZY_LOCAL: NameType               = "$lzy"
     val LAZY_SLOW_SUFFIX: NameType         = "$lzycompute"
     val LOCAL_SUFFIX_STRING                = " "
+    val MACRO_INVOKER_PACKAGE: NameType    = "<macroinvokers>"
+    // TODO: if I use dollars here, as in "$invoker$", then Scala reflection fails to load implementations
+    def MACRO_INVOKER_SUFFIX: NameType     = "_invoker_" + randomUUID().toString.replace("-", "")
     val UNIVERSE_BUILD_PREFIX: NameType    = "$u.build."
     val UNIVERSE_PREFIX: NameType          = "$u."
     val UNIVERSE_SHORT: NameType           = "$u"
@@ -298,6 +311,9 @@ trait StdNames {
     val REIFY_FREE_THIS_SUFFIX: NameType   = "$this"
     val REIFY_FREE_VALUE_SUFFIX: NameType  = "$value"
     val REIFY_SYMDEF_PREFIX: NameType      = "symdef$"
+    val QUASIQUOTE_PREFIX: String          = "$quasiquote$"
+    val QUASIQUOTE_MATCHER_PACKAGE: NameType = "$quasiquote$"
+    val QUASIQUOTE_MATCHER_NAME: NameType  = "$matcher$"
     val MIXIN_CONSTRUCTOR: NameType        = "$init$"
     val MODULE_INSTANCE_FIELD: NameType    = NameTransformer.MODULE_INSTANCE_NAME  // "MODULE$"
     val OUTER: NameType                    = "$outer"
@@ -310,6 +326,7 @@ trait StdNames {
     val SPECIALIZED_INSTANCE: NameType     = "specInstance$"
     val STAR: NameType                     = "*"
     val THIS: NameType                     = "_$this"
+    val TYPEMACRO_SUFFIX: NameType         = "$macro"
 
     @deprecated("Use SPECIALIZED_SUFFIX", "2.10.0")
     def SPECIALIZED_SUFFIX_STRING = SPECIALIZED_SUFFIX.toString
@@ -436,6 +453,10 @@ trait StdNames {
     /** The name of a setter for protected symbols. Used for inherited Java fields. */
     def protSetterName(name: Name): TermName = newTermName(PROTECTED_SET_PREFIX + name)
 
+    def typeMacroName(name: Name): TermName = newTermName(name + TYPEMACRO_SUFFIX.toString)
+    def isTypeMacroName(name: Name): Boolean = name.endsWith(TYPEMACRO_SUFFIX)
+    def stripTypeMacroSuffix(name: Name): Name = if (isTypeMacroName(name)) name dropRight TYPEMACRO_SUFFIX.length else name
+
     final val Nil: NameType                 = "Nil"
     final val Predef: NameType              = "Predef"
 
@@ -533,6 +554,7 @@ trait StdNames {
     val Annotation: NameType           = "Annotation"
     val Any: NameType                  = "Any"
     val AnyVal: NameType               = "AnyVal"
+    val Apply: NameType                = "Apply"
     val ArrayAnnotArg: NameType        = "ArrayAnnotArg"
     val ConstantType: NameType         = "ConstantType"
     val EmptyPackage: NameType         = "EmptyPackage"
@@ -547,15 +569,18 @@ trait StdNames {
     val NoFlags: NameType              = "NoFlags"
     val NoSymbol: NameType             = "NoSymbol"
     val Nothing: NameType              = "Nothing"
+    val None: NameType                 = "None"
     val Null: NameType                 = "Null"
     val Object: NameType               = "Object"
     val RootPackage: NameType          = "RootPackage"
     val RootClass: NameType            = "RootClass"
     val Select: NameType               = "Select"
     val SelectFromTypeTree: NameType   = "SelectFromTypeTree"
+    val Some: NameType                 = "Some"
     val StringContext: NameType        = "StringContext"
     val This: NameType                 = "This"
     val ThisType: NameType             = "ThisType"
+    val Tuple: NameType                = "Tuple"
     val Tuple2: NameType               = "Tuple2"
     val TYPE_ : NameType               = "TYPE"
     val TypeRef: NameType              = "TypeRef"
@@ -568,6 +593,7 @@ trait StdNames {
     val applyDynamic: NameType         = "applyDynamic"
     val applyDynamicNamed: NameType    = "applyDynamicNamed"
     val applyOrElse: NameType          = "applyOrElse"
+    val api: NameType                  = "api"
     val args : NameType                = "args"
     val argv : NameType                = "argv"
     val arrayClass: NameType           = "arrayClass"
@@ -582,6 +608,7 @@ trait StdNames {
     val box: NameType                  = "box"
     val build : NameType               = "build"
     val bytes: NameType                = "bytes"
+    val c: NameType                    = "c"
     val canEqual_ : NameType           = "canEqual"
     val checkInitialized: NameType     = "checkInitialized"
     val classOf: NameType              = "classOf"
@@ -610,6 +637,8 @@ trait StdNames {
     val find_ : NameType               = "find"
     val flagsFromBits : NameType       = "flagsFromBits"
     val flatMap: NameType              = "flatMap"
+    val flatten: NameType              = "flatten"
+    val foldLeft: NameType             = "foldLeft"
     val foreach: NameType              = "foreach"
     val get: NameType                  = "get"
     val hashCode_ : NameType           = "hashCode"
@@ -652,6 +681,8 @@ trait StdNames {
     val productPrefix: NameType        = "productPrefix"
     val readResolve: NameType          = "readResolve"
     val reify : NameType               = "reify"
+    val reflect: NameType              = "reflect"
+    val resolveMacroImpl: NameType     = "resolveMacroImpl"
     val rootMirror : NameType          = "rootMirror"
     val runtime: NameType              = "runtime"
     val runtimeClass: NameType         = "runtimeClass"
@@ -675,10 +706,12 @@ trait StdNames {
     val this_ : NameType               = "this"
     val thisPrefix : NameType          = "thisPrefix"
     val toArray: NameType              = "toArray"
+    val toList: NameType               = "toList"
     val toObjectArray : NameType       = "toObjectArray"
     val toString_ : NameType           = "toString"
     val toTypeConstructor: NameType    = "toTypeConstructor"
     val tpe : NameType                 = "tpe"
+    val transform : NameType           = "transform"
     val tree : NameType                = "tree"
     val true_ : NameType               = "true"
     val typedProductIterator: NameType = "typedProductIterator"

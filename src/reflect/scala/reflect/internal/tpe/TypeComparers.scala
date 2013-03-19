@@ -35,14 +35,14 @@ trait TypeComparers {
 
   private var subsametypeRecursions: Int = 0
 
-  private def isUnifiable(pre1: Type, pre2: Type) =
+  protected def isUnifiable(pre1: Type, pre2: Type) =
     (beginsWithTypeVarOrIsRefined(pre1) || beginsWithTypeVarOrIsRefined(pre2)) && (pre1 =:= pre2)
 
   /** Returns true iff we are past phase specialize,
     *  sym1 and sym2 are two existential skolems with equal names and bounds,
     *  and pre1 and pre2 are equal prefixes
     */
-  private def isSameSpecializedSkolem(sym1: Symbol, sym2: Symbol, pre1: Type, pre2: Type) = {
+  protected def isSameSpecializedSkolem(sym1: Symbol, sym2: Symbol, pre1: Type, pre2: Type) = {
     sym1.isExistentialSkolem && sym2.isExistentialSkolem &&
       sym1.name == sym2.name &&
       phase.specialized &&
@@ -50,14 +50,14 @@ trait TypeComparers {
       pre1 =:= pre2
   }
 
-  private def isSubPre(pre1: Type, pre2: Type, sym: Symbol) =
+  protected def isSubPre(pre1: Type, pre2: Type, sym: Symbol) =
     if ((pre1 ne pre2) && (pre1 ne NoPrefix) && (pre2 ne NoPrefix) && pre1 <:< pre2) {
       if (settings.debug.value) println(s"new isSubPre $sym: $pre1 <:< $pre2")
       true
     } else
       false
 
-  private def equalSymsAndPrefixes(sym1: Symbol, pre1: Type, sym2: Symbol, pre2: Type): Boolean =
+  protected def equalSymsAndPrefixes(sym1: Symbol, pre1: Type, sym2: Symbol, pre2: Type): Boolean =
     if (sym1 == sym2) sym1.hasPackageFlag || sym1.owner.hasPackageFlag || phase.erasedTypes || pre1 =:= pre2
     else (sym1.name == sym2.name) && isUnifiable(pre1, pre2)
 

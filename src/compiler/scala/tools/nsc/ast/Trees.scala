@@ -45,6 +45,11 @@ trait Trees extends scala.reflect.internal.Trees { self: Global =>
   /** emitted by typer, eliminated by refchecks */
   case class TypeTreeWithDeferredRefCheck()(val check: () => TypeTree) extends TypTree
 
+  /** emitted by typer, eliminated by typer
+   *  TODO: that's a very unfortunate hack
+   */
+  case class MacroAnnotationExpansion(val expandedAnnottee: List[Tree], val expandedCompanion: Option[Tree]) extends Tree
+
   // --- factory methods ----------------------------------------------------------
 
   /** Factory method for a primary constructor super call `super.<init>(args_1)...(args_n)`
@@ -151,7 +156,7 @@ trait Trees extends scala.reflect.internal.Trees { self: Global =>
 
  // --- subcomponents --------------------------------------------------
 
-  object treeInfo extends {
+  override object treeInfo extends {
     val global: Trees.this.type = self
   } with TreeInfo
 
@@ -170,6 +175,9 @@ trait Trees extends scala.reflect.internal.Trees { self: Global =>
       traverser.traverse(arg)
     case TypeTreeWithDeferredRefCheck() =>
       // (and rewrap the result? how to update the deferred check? would need to store wrapped tree instead of returning it from check)
+    case MacroAnnotationExpansion(expandedAnnottee, expandedCompanion) =>
+      traverser.traverseTrees(expandedAnnottee)
+      expandedCompanion.map(traverser.traverse _)
     case _ => super.xtraverse(traverser, tree)
   }
 
@@ -178,6 +186,7 @@ trait Trees extends scala.reflect.internal.Trees { self: Global =>
     def SelectFromArray(tree: Tree, qualifier: Tree, selector: Name, erasure: Type): SelectFromArray
     def InjectDerivedValue(tree: Tree, arg: Tree): InjectDerivedValue
     def TypeTreeWithDeferredRefCheck(tree: Tree): TypeTreeWithDeferredRefCheck
+    def MacroAnnotationExpansion(tree: Tree, expandedAnnottee: List[Tree], expandedCompanion: Option[Tree]): MacroAnnotationExpansion
   }
 
   def newStrictTreeCopier: TreeCopier = new StrictTreeCopier
@@ -193,6 +202,8 @@ trait Trees extends scala.reflect.internal.Trees { self: Global =>
     def TypeTreeWithDeferredRefCheck(tree: Tree) = tree match {
       case dc@TypeTreeWithDeferredRefCheck() => new TypeTreeWithDeferredRefCheck()(dc.check).copyAttrs(tree)
     }
+    def MacroAnnotationExpansion(tree: Tree, expandedAnnottee: List[Tree], expandedCompanion: Option[Tree]) =
+      new MacroAnnotationExpansion(expandedAnnottee, expandedCompanion).copyAttrs(tree)
   }
 
   class LazyTreeCopier extends super.LazyTreeCopier with TreeCopier {
@@ -214,6 +225,11 @@ trait Trees extends scala.reflect.internal.Trees { self: Global =>
     def TypeTreeWithDeferredRefCheck(tree: Tree) = tree match {
       case t @ TypeTreeWithDeferredRefCheck() => t
       case _ => this.treeCopy.TypeTreeWithDeferredRefCheck(tree)
+    }
+    def MacroAnnotationExpansion(tree: Tree, expandedAnnottee: List[Tree], expandedCompanion: Option[Tree]) = tree match {
+      case t @ MacroAnnotationExpansion(expandedAnnottee0, expandedCompanion0)
+      if (expandedAnnottee0 == expandedAnnottee && expandedCompanion0 == expandedCompanion) => t
+      case _ => this.treeCopy.MacroAnnotationExpansion(tree, expandedAnnottee, expandedCompanion)
     }
   }
 
@@ -244,6 +260,8 @@ trait Trees extends scala.reflect.internal.Trees { self: Global =>
         tree, transformer.transform(arg))
     case TypeTreeWithDeferredRefCheck() =>
       transformer.treeCopy.TypeTreeWithDeferredRefCheck(tree)
+    case MacroAnnotationExpansion(expandedAnnottee, expandedCompanion) =>
+      transformer.treeCopy.MacroAnnotationExpansion(tree, transformer.transformTrees(expandedAnnottee), expandedCompanion.map(transformer.transform _))
   }
 
   object resetPos extends Traverser {
@@ -258,9 +276,12 @@ trait Trees extends scala.reflect.internal.Trees { self: Global =>
 //  def resetAllAttrs[A<:Tree](x:A): A = { new ResetAttrsTraverser().traverse(x); x }
 //  def resetLocalAttrs[A<:Tree](x:A): A = { new ResetLocalAttrsTraverser().traverse(x); x }
 
-  def resetAllAttrs(x: Tree, leaveAlone: Tree => Boolean = null): Tree = new ResetAttrs(false, leaveAlone).transform(x)
-  def resetLocalAttrs(x: Tree, leaveAlone: Tree => Boolean = null): Tree = new ResetAttrs(true, leaveAlone).transform(x)
-  def resetLocalAttrsKeepLabels(x: Tree, leaveAlone: Tree => Boolean = null): Tree = new ResetAttrs(true, leaveAlone, true).transform(x)
+  // TODO: resetAllTypeTrees is an awful hack for the macro jit compiler
+  // I'm afraid it's going to irreparably bork trees in some cases
+  // We should definitely figure this out some time
+  def resetAllAttrs(x: Tree, leaveAlone: Tree => Boolean = null, resetAllTypeTrees: Boolean = false): Tree = new ResetAttrs(localOnly = false, leaveAlone = leaveAlone, resetAllTypeTrees = resetAllTypeTrees).transform(x)
+  def resetLocalAttrs(x: Tree, leaveAlone: Tree => Boolean = null, resetAllTypeTrees: Boolean = false): Tree = new ResetAttrs(localOnly = true, leaveAlone = leaveAlone, resetAllTypeTrees = resetAllTypeTrees).transform(x)
+  def resetLocalAttrsKeepLabels(x: Tree, leaveAlone: Tree => Boolean = null): Tree = new ResetAttrs(localOnly = true, leaveAlone = leaveAlone, keepLabels = true).transform(x)
 
   /** A transformer which resets symbol and tpe fields of all nodes in a given tree,
    *  with special treatment of:
@@ -271,7 +292,7 @@ trait Trees extends scala.reflect.internal.Trees { self: Global =>
    *
    *  (bq:) This transformer has mutable state and should be discarded after use
    */
-  private class ResetAttrs(localOnly: Boolean, leaveAlone: Tree => Boolean = null, keepLabels: Boolean = false) {
+  private class ResetAttrs(localOnly: Boolean, leaveAlone: Tree => Boolean = null, keepLabels: Boolean = false, resetAllTypeTrees: Boolean = false) {
     val debug = settings.debug.value
     val trace = scala.tools.nsc.util.trace when debug
 
@@ -327,7 +348,7 @@ trait Trees extends scala.reflect.internal.Trees { self: Global =>
                 else {
                   val refersToLocalSymbols = tpt.tpe != null && (tpt.tpe exists (tp => locals contains tp.typeSymbol))
                   val isInferred = tpt.wasEmpty
-                  if (refersToLocalSymbols || isInferred) {
+                  if (resetAllTypeTrees || refersToLocalSymbols || isInferred) {
                     tpt.duplicate.clearType()
                   } else {
                     tpt

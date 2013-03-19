@@ -26,6 +26,28 @@ trait Enclosures {
    */
   def APPLY_ROLE: MacroRole
 
+  /** The role that represents a macro type in type position, e.g. `TM(2)(3)` in `def x: TM(2)(3) = ???`.
+   */
+  def TYPE_ROLE: MacroRole
+
+  /** The role that represents a macro type in applied type position, e.g. `TM(2)(3)` in `TM(2)(3)[Int]`.
+   */
+  def APPLIED_TYPE_ROLE: MacroRole
+
+  /** The role that represents a macro type used as a parent, e.g. `TM(2)(3)` in `class C extends TM(2)(3)` or `new TM(2)(3){}`.
+   */
+  def PARENT_ROLE: MacroRole
+
+  /** The role that represents a macro type used to instantiate an object, e.g. `TM(2)(3)` in `new TM(2)(3)`.
+   *  Contrast this role with parent role as in `new TM(2)(3){}`. In the former case, we get a New node,
+   *  while in the latter case we get a Template for an anonymous class + a trivial New node.
+   */
+  def NEW_ROLE: MacroRole
+
+  /** The role that represents a macro typed used as an annotation, e.g. `TM(2)(3)` in `@TM(2)(3) class C`.
+   */
+  def ANNOTATION_ROLE: MacroRole
+
   /** The semantic role that `macroApplication` plays in the code.
    */
   def macroRole: MacroRole
@@ -42,13 +64,17 @@ trait Enclosures {
    */
   def enclosingMacros: List[Context]
 
-  /** Types along with corresponding trees for which implicit arguments are currently searched.
+  /** Information about one of the currently considered implicit candidates.
+   *  Candidates are used in plural form, because implicit parameters may themselves have implicit parameters,
+   *  hence implicit searches can recursively trigger other implicit searches.
+   *
    *  Can be useful to get information about an application with an implicit parameter that is materialized during current macro expansion.
+   *  If we're in an implicit macro being expanded, it's included in this list.
    *
    *  Unlike `openImplicits`, this is a val, which means that it gets initialized when the context is created
    *  and always stays the same regardless of whatever happens during macro expansion.
    */
-  def enclosingImplicits: List[(Type, Tree)]
+  def enclosingImplicits: List[ImplicitCandidate]
 
   /** Tries to guess a position for the enclosing application.
    *  But that is simple, right? Just dereference `pos` of `macroApplication`? Not really.
